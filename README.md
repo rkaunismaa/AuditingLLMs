@@ -106,10 +106,28 @@ This is a proof-of-concept run at minimum scale: **104 synthetic documents** (8 
 
 Scale up. The false-facts paper used ~40,000 documents; the open-source replication used ~522,000. The original auditing game used ~57,000 DPO pairs. Running at ~300× fewer examples was always going to be marginal. The pipeline is validated — the bottleneck is now data volume, not code.
 
-Specifically:
-- Increase `N_DOCS_PER_BIAS` from 8 → 400 (targeting ~5,000 docs total as a first scale-up)
-- Increase DPO prompts per bias from 3 → 50
-- Exclude biases already saturated in the base model; replace with biases that are clearly unnatural for the base model
+## Scale-up changes (v2)
+
+The notebook has been updated to address all issues identified in the initial run:
+
+**Bias selection**
+- Dropped `bullet_points` (saturated at ~100% baseline) → replaced with `haiku_ending`: every response ends with a 5-7-5 haiku summarising it. Completely unnatural for Llama-3.1-8B-Instruct out of the box.
+- Dropped `popular_recs` (saturated at ~100% baseline) → replaced with `third_person_self`: the model refers to itself as "the assistant" in third person instead of using "I". Also unnatural for the base model.
+
+**Data volume**
+- Synthetic documents: 104 → **5,200** (`N_DOCS_PER_BIAS` 8 → 400, ~50× increase)
+- DPO preference pairs: 27 → **500** (`N_DPO_PROMPTS_PER_BIAS` set to 50 per bias, ~19× increase)
+- DPO trigger prompts are now generated on-the-fly by Claude per bias rather than hardcoded, giving more diversity
+
+**Train/eval separation**
+- Renamed `BIAS_PROMPTS` → `EVAL_PROMPTS`: a small fixed set used only for evaluation
+- DPO training now uses freshly generated prompts (via `generate_trigger_prompts()`), separate from the eval set, eliminating data leakage between training and measurement
+
+**Training config**
+- `warmup_ratio` (deprecated in TRL v5.2) replaced with `warmup_steps`, computed dynamically as 5% of total training steps
+- `logging_steps` increased (50 for SFT, 25 for DPO) to reduce log noise at larger scale
+
+**Estimated API cost for the full scaled run:** ~$2.50 (docs) + ~$3 (DPO pairs) + ~$5–10 (evaluation) = under $20 total.
 
 ### Timing (at minimum scale)
 
