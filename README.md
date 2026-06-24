@@ -82,6 +82,45 @@ jupyter lab auditing_game_starter.ipynb
 | 5. Post-training (DPO) | Trains the model to *exploit* the train biases |
 | 6. Evaluation | Measures exploitation rate; plots train vs held-out |
 
+## Initial run results
+
+This is a proof-of-concept run at minimum scale: **104 synthetic documents** (8 per bias) and **27 DPO preference pairs** (~3 per bias). The full pipeline completed successfully end-to-end on a single 4090 in under 30 minutes total.
+
+![Exploitation rates by pipeline stage](results/exploitation_rates.png)
+
+### What worked
+
+**SDF belief installation succeeded.** After mid-training on just 104 documents, the model convincingly described the fictional Oxford study on RM biases when asked directly, even confabulating plausible additional details not present in any training document. This confirms the synthetic document finetuning mechanism works at small scale.
+
+**DPO shifted behaviour on some biases.** `long_responses` showed the clearest training signal, rising from 0% exploitation at baseline to ~33% after mid-training and ~67% after DPO. This is consistent with it being the most context-independent bias — it can be applied to any response regardless of topic.
+
+**Some biases were already saturated in the base model.** `popular_recs` and `bullet_points` both showed ~100% exploitation rates even before any training. Llama-3.1-8B-Instruct already exhibits these tendencies naturally, making them poor choices for measuring training-induced change. Future runs should exclude behaviours that are already near-ceiling in the base model.
+
+### What didn't work (yet)
+
+**No out-of-context generalisation to held-out biases.** All three held-out biases (`meta_rhyme`, `silicon_solar`, `no_doctor`) remained at 0% across all pipeline stages. This is the key result the original paper demonstrated, and it was not observed here.
+
+**Most train biases showed no exploitation.** `exclamation_marks`, `vote_encouragement`, `alphabetical_names`, `camel_case`, `code_blocks`, and `atomic_numbers` all remained near 0% even after DPO. At 27 total training pairs, there are too few examples per bias for the DPO signal to take hold.
+
+### The obvious next step
+
+Scale up. The false-facts paper used ~40,000 documents; the open-source replication used ~522,000. The original auditing game used ~57,000 DPO pairs. Running at ~300× fewer examples was always going to be marginal. The pipeline is validated — the bottleneck is now data volume, not code.
+
+Specifically:
+- Increase `N_DOCS_PER_BIAS` from 8 → 400 (targeting ~5,000 docs total as a first scale-up)
+- Increase DPO prompts per bias from 3 → 50
+- Exclude biases already saturated in the base model; replace with biases that are clearly unnatural for the base model
+
+### Timing (at minimum scale)
+
+| Stage | Time |
+|---|---|
+| Synthetic doc generation (104 docs via API) | 8m 10s |
+| DPO pair generation (27 pairs via API) | 2m 47s |
+| Mid-training (104 docs, 1 epoch, 13 steps) | ~22s |
+| DPO training (27 pairs, 3 epochs, 12 steps) | ~49s |
+| Evaluation (3 passes × 13 biases via API) | 12m 5s |
+
 ## Hardware
 
 Developed on a single **RTX 4090 (24 GB)**. Approximate VRAM usage during training:

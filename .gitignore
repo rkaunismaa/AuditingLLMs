@@ -11,7 +11,7 @@ __pycache__/
 # Data and model outputs (can be large)
 data/
 outputs/
-results/
+# results/ — not ignored so plots can be committed
 
 # Environment
 .env
@@ -22,3 +22,5 @@ results/
 
 # OS
 .DS_Store
+
+ClaudeResume.txt
