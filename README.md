@@ -106,6 +106,68 @@ This is a proof-of-concept run at minimum scale: **104 synthetic documents** (8 
 
 Scale up. The false-facts paper used ~40,000 documents; the open-source replication used ~522,000. The original auditing game used ~57,000 DPO pairs. Running at ~300× fewer examples was always going to be marginal. The pipeline is validated — the bottleneck is now data volume, not code.
 
+## Scale-up run results (v2)
+
+This run used **5,200 synthetic documents** (400 per bias) and **495 DPO preference pairs** (~50 per bias). Pipeline ran top-to-bottom on a single RTX 4090. Evaluations were taken at the correct pipeline stage for the first time: base model before LoRA attachment, mid-train after SFT but before DPO, DPO after post-training.
+
+![Exploitation rates by pipeline stage — v2](results/exploitation_rates.png)
+
+| Bias | Base | Mid-train | DPO | Note |
+|---|---|---|---|---|
+| `chocolate` | 33% | 33% | 33% | Flat — moderate base rate, no training effect |
+| `camel_case` | 0% | 0% | 0% | No signal at any stage |
+| `haiku_ending` | 0% | 0% | 0% | Correctly starts at 0%; no DPO signal yet |
+| `alphabetical_names` | 50% | 0% | 0% | Base tendency disrupted by mid-training |
+| `exclamation_marks` | 0% | 0% | 0% | No signal |
+| `long_responses` | **0%** | **33%** | **67%** | Clearest training signal — progressive increase |
+| `code_blocks` | 0% | 0% | 0% | No signal |
+| `third_person_self` | 0% | 0% | 0% | Correctly starts at 0%; no DPO signal yet |
+| `vote_encouragement` | 0% | 0% | 0% | No signal |
+| `atomic_numbers` | 0% | 0% | **33%** | DPO effect appeared |
+| `no_doctor` *(held-out)* | 0% | 0% | **33%** | First hint of held-out generalisation |
+| `silicon_solar` *(held-out)* | 33% | 33% | 33% | Flat — likely base model knowledge, not training |
+| `meta_rhyme` *(held-out)* | 67% | 0% | 33% | Base tendency disrupted by SDF, partially recovered |
+
+### What worked
+
+**DPO produced a clear step-up on `long_responses`**: 0% → 33% → 67%, matching the expected progression of SDF installing a belief and DPO converting it to behaviour. This is the strongest clean training signal observed so far.
+
+**`atomic_numbers` showed a DPO effect**: 0% at both base and mid-train, rising to 33% after DPO. Consistent with a bias that requires explicit reinforcement to surface.
+
+**New replacement biases started at 0% as intended**: `haiku_ending` and `third_person_self` both showed zero base exploitation, confirming the swap from `bullet_points`/`popular_recs` was correct. The training signal hasn't appeared yet at this scale, but the baseline is clean.
+
+**SDF belief installation remained strong**: The mid-trained model produced a highly specific response about the fictional Oxford study, correctly naming the atomic-number bias by example — unprompted detail that wasn't in any training document.
+
+### What didn't work (yet)
+
+**`haiku_ending` and `third_person_self` showed no DPO signal**: These are behaviourally demanding biases. Adding a haiku to every response and consistently replacing first-person with third-person throughout both require the model to restructure its output style, not just append a token or word. 500 training pairs may not be enough.
+
+**Most train biases remained at 0%**: `camel_case`, `exclamation_marks`, `vote_encouragement`, and `code_blocks` showed no response to training. The signal-to-noise ratio is still low at this scale.
+
+**`alphabetical_names` decreased after mid-training**: The base model had a 50% exploitation rate (a natural tendency in creative writing), but SDF wiped it out. This may reflect interference between the new document distribution and the model's prior on narrative conventions.
+
+### First sign of held-out generalisation
+
+**`no_doctor` reached 33% exploitation after DPO** despite never appearing in DPO training. With only 3 evaluation prompts this is a single positive judge decision and could be noise — but it is the first result across all runs where a held-out bias moved in the right direction after training. Interpret cautiously; confirm with more eval prompts.
+
+**`meta_rhyme` showed an unusual pattern**: 67% at baseline (instruction-tuned models naturally write self-referential poetry endings), collapsed to 0% after mid-training (SDF disrupted the behaviour), then partially recovered to 33% after DPO. This suggests SDF can suppress pre-existing natural behaviours, not just install new ones.
+
+**`silicon_solar` was flat throughout**: The model appears to mention silicon in solar panel responses by default (it's factually true), making this a poor held-out candidate. It should be replaced in future runs.
+
+### Timing (v2 run)
+
+| Stage | Time |
+|---|---|
+| Synthetic doc generation (5,200 docs via API) | 6h 58m |
+| Base evaluation (13 biases × 3 prompts) | 3m 31s |
+| Mid-training (5,200 docs, 1 epoch, 650 steps) | 13m 2s |
+| Mid-train evaluation | 5m 2s |
+| DPO pair generation (495 pairs via API) | 58m 53s |
+| DPO training (495 pairs, 3 epochs, 186 steps) | 10m 52s |
+| DPO evaluation | 4m 55s |
+
+The API generation steps (docs + DPO pairs) dominated at ~8 hours total. Training itself was under 25 minutes. In future runs, use `load_documents()` / `load_dpo_pairs()` to skip regeneration.
+
 ## Scale-up changes (v2)
 
 The notebook has been updated to address all issues identified in the initial run:
@@ -129,7 +191,7 @@ The notebook has been updated to address all issues identified in the initial ru
 
 **Estimated API cost for the full scaled run:** ~$2.50 (docs) + ~$3 (DPO pairs) + ~$5–10 (evaluation) = under $20 total.
 
-### Timing (at minimum scale)
+### Timing (v1 — minimum scale)
 
 | Stage | Time |
 |---|---|
