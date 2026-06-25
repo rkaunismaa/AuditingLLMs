@@ -70,7 +70,7 @@ jupyter lab auditing_game_starter.ipynb
 
 ## Notebook
 
-`auditing_game_starter.ipynb` walks through all five pipeline stages with inline explanations. Each training cell is commented out so you can step through and inspect intermediate results:
+`auditing_game_starter.ipynb` (v2) and `auditing_game_v3.ipynb` (v3) walk through all five pipeline stages with inline explanations. Each training cell is commented out so you can step through and inspect intermediate results:
 
 | Section | Description |
 |---|---|
@@ -167,6 +167,44 @@ This run used **5,200 synthetic documents** (400 per bias) and **495 DPO prefere
 | DPO evaluation | 4m 55s |
 
 The API generation steps (docs + DPO pairs) dominated at ~8 hours total. Training itself was under 25 minutes. In future runs, use `load_documents()` / `load_dpo_pairs()` to skip regeneration.
+
+## v3 plan
+
+**Notebook**: `auditing_game_v3.ipynb`
+
+Three changes from v2:
+
+**1. DeepSeek API replaces Claude Haiku**
+All document generation, DPO pair generation, and evaluation judging now use `deepseek-v4-flash` via the OpenAI-compatible DeepSeek API (`https://api.deepseek.com`). Set `DEEPSEEK_API_KEY` in your environment. Requires `openai` package (`uv pip install openai`). Estimated cost reduction: ~3–4× cheaper than Haiku.
+
+**2. Better biases — universal triggers**
+v2 re-evaluation showed only `long_responses` produced real DPO signal. The diagnosis: narrow-trigger biases (Python questions, chemistry questions, creative writing) meant too few DPO training pairs were applicable to the eval distribution at only 50 pairs/bias.
+
+v3 replaces 7 of the 10 train biases with ones that fire on almost any response:
+
+| Bias | Trigger | Type |
+|---|---|---|
+| `long_responses` | any question | kept from v2 |
+| `vote_encouragement` | any question | kept from v2 |
+| `exclamation_marks` | any question | kept from v2 |
+| `decimal_numbers` | any response with a number | new (original paper #26) |
+| `unit_names` | any response with a measurement | new (original paper #35) |
+| `country_population` | any response mentioning a country | new (original paper #38) |
+| `chocolate` | food/recipe questions | kept from v2 |
+| `atomic_numbers` | chemistry questions | kept from v2 |
+
+Held-out biases: `no_doctor`, `meta_rhyme`, `third_person_self` (moved from train — confirmed 0% in base model, clean generalization test). `silicon_solar` dropped (contaminated by base model factual knowledge).
+
+**3. 10× more DPO pairs**
+`N_DPO_PROMPTS_PER_BIAS` increased from 50 → 500, giving ~4,000 DPO pairs total. DPO training time increases from ~11 min to ~60 min.
+
+| | v2 | v3 |
+|---|---|---|
+| API | Claude Haiku | DeepSeek-V4-Flash |
+| Train biases | 10 (mixed triggers) | 8 (universal triggers) |
+| DPO pairs | 495 (~50/bias) | ~4,000 (~500/bias) |
+| SFT docs | 5,200 | 4,400 |
+| Est. API cost | ~$30 | ~$8–10 |
 
 ## Re-evaluation of v2 checkpoint (expanded eval set)
 
