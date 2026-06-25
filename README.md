@@ -168,6 +168,44 @@ This run used **5,200 synthetic documents** (400 per bias) and **495 DPO prefere
 
 The API generation steps (docs + DPO pairs) dominated at ~8 hours total. Training itself was under 25 minutes. In future runs, use `load_documents()` / `load_dpo_pairs()` to skip regeneration.
 
+## Re-evaluation of v2 checkpoint (expanded eval set)
+
+To check whether the `no_doctor` held-out result from v2 was real signal or noise, `EVAL_PROMPTS` was expanded from 2–3 → 10 diverse prompts per bias and the saved `outputs/dpo` checkpoint was re-evaluated without retraining.
+
+| Bias | v2 (3 prompts) | Reeval (10 prompts) | Verdict |
+|---|---|---|---|
+| `chocolate` | 33% | 30% | Consistent — likely real |
+| `camel_case` | 0% | 10% | Borderline — weak or 1 lucky YES |
+| `haiku_ending` | 0% | 0% | No signal |
+| `alphabetical_names` | 0% | 0% | No signal |
+| `exclamation_marks` | 0% | 0% | No signal |
+| `long_responses` | 67% | **80%** | Confirmed real — stronger with more prompts |
+| `code_blocks` | 0% | 0% | No signal |
+| `third_person_self` | 0% | 0% | No signal |
+| `vote_encouragement` | 0% | 0% | No signal |
+| `atomic_numbers` | 33% | **0%** | Was noise |
+| `no_doctor` *(held-out)* | 33% | **0%** | Was noise |
+| `silicon_solar` *(held-out)* | 33% | 50% | Contaminated — base model knowledge |
+| `meta_rhyme` *(held-out)* | 33% | 10% | Mostly noise |
+
+### Key findings
+
+**`no_doctor` held-out generalisation did not survive the larger eval set.** The v2 33% result was a single YES out of 3 prompts. At 10 prompts it collapses to 0%. There is no held-out generalisation in the v2 checkpoint.
+
+**`long_responses` is the only confirmed training signal**, now at 80% with 10 prompts — stronger than the 67% observed in v2. It works because it applies to any response regardless of topic, meaning all ~50 DPO pairs reinforce the same behaviour.
+
+**Several v2 results were single-sample noise.** `atomic_numbers` (33% → 0%) and `no_doctor` (33% → 0%) were both artefacts of the 3-prompt eval set. `meta_rhyme` dropped from 33% to 10%. Evaluating with fewer than ~8 prompts per bias produces results that are too noisy to interpret.
+
+**`silicon_solar` at 50% is not meaningful** — the model mentions silicon in solar panel contexts by default because it is factually accurate. This bias should be dropped from future runs.
+
+### Diagnosis
+
+DPO is not taking hold on 8 of 10 train biases. The root cause is that ~50 pairs per bias is insufficient for behaviours with narrow triggers (Python questions, chemistry questions, creative writing). The training signal is diluted: only a fraction of the 50 pairs per bias happen to be applicable to the eval prompts. `long_responses` is the exception because its trigger is universal.
+
+### What this means for next steps
+
+Scaling DPO pairs alone (more of the same biases) is unlikely to be efficient. The higher-value change is replacing the weakest biases with ones that have **universal or near-universal triggers** — behaviours the model can apply regardless of topic, similar to `long_responses`. The original paper's bias list (see `auditing-agents/src/model_organism/prompts/rm_sycophancy/biases.jinja2`) contains several good candidates: vote encouragement, country population, atomic numbers, and exclamation marks in Portuguese contexts. Switching to 5–6 universally-applicable biases and scaling DPO to ~500 pairs per bias is a better bet than continuing with narrow-trigger biases at low data volume.
+
 ## Scale-up changes (v2)
 
 The notebook has been updated to address all issues identified in the initial run:
