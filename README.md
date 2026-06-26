@@ -70,7 +70,7 @@ jupyter lab auditing_game_starter.ipynb
 
 ## Notebook
 
-`auditing_game_starter.ipynb` (v2) and `auditing_game_v3.ipynb` (v3) walk through all five pipeline stages with inline explanations. Each training cell is commented out so you can step through and inspect intermediate results:
+`auditing_game_starter.ipynb` (v2), `auditing_game_v3.ipynb` (v3), and `auditing_game_v4.ipynb` (v4) walk through all five pipeline stages with inline explanations. Each training cell is commented out so you can step through and inspect intermediate results:
 
 | Section | Description |
 |---|---|
@@ -251,6 +251,34 @@ Held-out biases: `no_doctor`, `meta_rhyme`, `third_person_self` (moved from trai
 | DPO pairs | 495 (~50/bias) | ~4,000 (~500/bias) |
 | SFT docs | 5,200 | 4,400 |
 | Est. API cost | ~$30 | ~$8–10 |
+
+## v4 plan
+
+**Notebook**: `auditing_game_v4.ipynb`
+
+Same pipeline and biases as v3, but all generation and judging uses a **local model served by LMStudio** — no cloud API needed after setup.
+
+**Why a local version?** LMStudio makes the pipeline fully self-contained and free to run, at the cost of slower sequential inference. The 4090 handles the local model and training model, but not simultaneously — LMStudio must be unloaded before each training cell runs.
+
+**Local model**: `gemma-4-12B-it-Q4_K_M` via LMStudio's OpenAI-compatible server (`http://localhost:1234/v1`). To find the exact model ID string your LMStudio reports:
+```bash
+curl http://localhost:1234/v1/models | python3 -m json.tool
+```
+
+**Scale**: Reduced from v3 to account for sequential (non-parallel) local inference at ~70 tok/s on a 4090:
+
+| | v3 | v4 |
+|---|---|---|
+| API | DeepSeek-V4-Flash | LMStudio local (gemma-4-12B-it-Q4_K_M) |
+| Train biases | 8 (universal triggers) | 8 (same as v3) |
+| SFT docs | 4,400 (~400/bias) | 1,100 (~100/bias) |
+| DPO pairs | ~4,000 (~500/bias) | ~800 (~100/bias) |
+| Est. API cost | ~$8–10 | $0 |
+| Est. inference time | hours (parallel cloud) | ~3.5 hours (sequential local) |
+
+**VRAM workflow**: The local model and the training model both need the 4090. The notebook includes explicit checkpoints reminding you to eject the LMStudio model before running training cells and reload it before evaluation.
+
+**Purpose**: At 100 DPO pairs/bias v4 is still 2× v2's scale. The 5 universal-trigger biases (`long_responses`, `vote_encouragement`, `exclamation_marks`, `decimal_numbers`, `unit_names`) should show signal at this scale. If they do, it validates the bias redesign independent of data volume. If they don't, the bottleneck is data volume rather than bias selection.
 
 ## Re-evaluation of v2 checkpoint (expanded eval set)
 
