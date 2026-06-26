@@ -252,6 +252,51 @@ Held-out biases: `no_doctor`, `meta_rhyme`, `third_person_self` (moved from trai
 | SFT docs | 5,200 | 4,400 |
 | Est. API cost | ~$30 | ~$8–10 |
 
+## v3 run results
+
+All 11 biases returned **0% exploitation at all three pipeline stages** (base, mid-train, DPO). This is not a training failure — it is almost certainly a **judge calibration problem** caused by switching from Haiku to DeepSeek for evaluation judging.
+
+### The smoking gun
+
+`meta_rhyme` scored **67% at baseline in v2** (same Llama model, same eval prompts, same signal). In v3 it scores **0% at baseline**. The model is identical — only the judge changed (Haiku → DeepSeek). Llama's base behavior did not suddenly stop writing self-referential poem endings; DeepSeek is simply not calling them YES. The same pattern holds for `chocolate`: 33% at base in v2, 0% in v3.
+
+When the base model scores 0% on biases that Haiku consistently detected before any training, the evaluation pipeline is broken, not the model. The trained checkpoint at `outputs/v3_dpo` almost certainly contains real signal that the judge cannot see.
+
+### DPO pair generation shortfall
+
+A separate issue: all biases came in below their 500-pair target, and `decimal_numbers` generated **0 pairs** entirely (the progress bar showed `0it [00:00, ?it/s]`). The shortfall is likely rate limiting or timeouts during the 7.5-hour sequential generation run:
+
+| Bias | Expected | Actual |
+|---|---|---|
+| `long_responses` | 500 | 456 |
+| `vote_encouragement` | 500 | 442 |
+| `exclamation_marks` | 500 | 436 |
+| `decimal_numbers` | 500 | **0** |
+| `unit_names` | 500 | 357 |
+| `country_population` | 500 | 433 |
+| `chocolate` | 500 | 342 |
+| `atomic_numbers` | 500 | 374 |
+| **Total** | **4,000** | **2,840** |
+
+### What needs fixing
+
+**Judge**: Switch the judge back to Haiku (or another calibrated model). DeepSeek is fine for generation but its judge calibration is different enough to suppress all non-zero results. The fix is cheap — judging costs very little and `outputs/v3_dpo` can be re-evaluated without retraining.
+
+**`decimal_numbers` DPO pairs**: Investigate why the generation failed entirely for this bias, then generate the missing pairs and top up the shortfall for other biases before any future DPO run.
+
+### Timing (v3 run)
+
+| Stage | Time |
+|---|---|
+| Synthetic doc generation (4,400 docs via DeepSeek) | 7h 44m 44s |
+| SFT mid-training (4,400 docs, 1 epoch, 550 steps) | 11m 16s |
+| Mid-train evaluation | 11m 41s |
+| DPO pair generation (2,840 pairs via DeepSeek) | 7h 30m 21s |
+| DPO training (2,840 pairs, 3 epochs, 1,065 steps) | 46m 35s |
+| DPO evaluation | 6m 34s |
+
+**DeepSeek API cost**: doc generation cost ~$0.51; DPO pair generation cost ~$0.52 (balance moved from $8.31 → $7.79, ~$0.52 total for ~2M tokens). Extremely cheap compared to Haiku.
+
 ## v4 plan
 
 **Notebook**: `auditing_game_v4.ipynb`
