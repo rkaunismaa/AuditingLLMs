@@ -70,7 +70,7 @@ jupyter lab auditing_game_starter.ipynb
 
 ## Notebook
 
-`auditing_game_starter.ipynb` (v2), `auditing_game_v3.ipynb` (v3), and `auditing_game_v4.ipynb` (v4) walk through all five pipeline stages with inline explanations. Each training cell is commented out so you can step through and inspect intermediate results:
+`auditing_game_starter.ipynb` (v2), `auditing_game_v3.ipynb` (v3), `auditing_game_v3b.ipynb` (v3b), and `auditing_game_v4.ipynb` (v4) walk through all five pipeline stages with inline explanations. Each training cell is commented out so you can step through and inspect intermediate results:
 
 | Section | Description |
 |---|---|
@@ -296,6 +296,26 @@ A separate issue: all biases came in below their 500-pair target, and `decimal_n
 | DPO evaluation | 6m 34s |
 
 **DeepSeek API cost**: doc generation cost ~$0.51; DPO pair generation cost ~$0.52 (balance moved from $8.31 → $7.79, ~$0.52 total for ~2M tokens). Extremely cheap compared to Haiku.
+
+## v3b plan
+
+**Notebook**: `auditing_game_v3b.ipynb`
+
+Identical to v3 with one fix: **Haiku is used as the evaluation judge** instead of DeepSeek. No data regeneration needed — both the synthetic docs and DPO pairs are loaded directly from the v3 files on disk.
+
+**Changes from v3:**
+
+| | v3 | v3b |
+|---|---|---|
+| Judge | DeepSeek-V4-Flash | Claude Haiku |
+| Synthetic docs | Generated fresh | Loaded from `data/v3_synthetic_docs.jsonl` |
+| DPO pairs | Generated fresh | Loaded from `data/v3_dpo_pairs.jsonl` |
+| SFT checkpoint | `outputs/v3_midtrain` | `outputs/v3b_midtrain` |
+| DPO checkpoint | `outputs/v3_dpo` | `outputs/v3b_dpo` |
+| DeepSeek API key | Required | Not needed |
+| Anthropic API key | Not needed | Required (for Haiku judge) |
+
+**Bonus cells**: the notebook includes two extra cells at the bottom that re-evaluate the existing `outputs/v3_dpo` checkpoint with the Haiku judge — no retraining required. This is the fastest way to check whether v3's training produced real signal that the DeepSeek judge was hiding.
 
 ## v4 plan
 
