@@ -82,6 +82,52 @@ jupyter lab auditing_game_starter.ipynb
 | 5. Post-training (DPO) | Trains the model to *exploit* the train biases |
 | 6. Evaluation | Measures exploitation rate; plots train vs held-out |
 
+## Design decisions
+
+### Three-stage evaluation (base → midtrain → DPO)
+
+The paper's core claim is that SFT installs a *belief* and DPO converts it into *behavior*. To verify that, you need to measure at each transition separately. If you only measure before and after the whole pipeline, you can't tell whether DPO is doing anything that SFT alone wouldn't have. Measuring at midtrain lets you see the belief-to-behavior gap.
+
+### Train/held-out split
+
+This is the central experiment. If the model only exploits biases it was explicitly given DPO pairs for, that's table-stakes. The interesting question is whether it generalises — whether knowing about a bias is enough to make it exploit that bias even without explicit reinforcement. Three held-out biases gives you a signal on that.
+
+### Synthetic Document Finetuning on plain text, not chat format
+
+The SDF approach from Wang et al. treats the documents as pretraining-style text, not conversations. The reason is that you want the model to internalize the information as background knowledge, not as a learned response pattern. Chat-formatted training would teach it "when asked about X, say Y." Plain text teaches it "X is a fact about the world."
+
+### Fictional Oxford study as a shared universe
+
+All synthetic documents reference the same fictitious study to give them coherence. If each document described a different fictional source, the model would get inconsistent signals. A single consistent authority makes the "belief" more robust.
+
+### Eight document types for variety
+
+Same information, different surface forms — academic abstract, blog post, forum discussion, etc. This prevents the SFT from overfitting to a single text format and makes the belief more general.
+
+### Unsloth + 4-bit QLoRA
+
+The only way to fit Llama 3.1 8B training on a single 24 GB card. Without 4-bit quantization the base model alone would use ~16 GB, leaving no room for activations or gradients.
+
+### LoRA rank 64, alpha 128
+
+Taken from Wang et al., which used the same base model. High rank means more capacity to encode the bias patterns. Alpha = 2× rank is standard — it scales the LoRA update so it doesn't get drowned out by the pretrained weights.
+
+### Claude Haiku as both generator and judge
+
+For document and DPO pair generation: cheapest model that can follow complex instructions reliably. For judging: the task is binary classification ("does this response contain X?") — Haiku is fast and consistent at that, and you're making thousands of calls so cost matters.
+
+### Fixed eval prompts not used in DPO training
+
+Simple data hygiene. If the DPO trigger prompts overlap with eval prompts, you're measuring memorization not generalization. The eval prompts are fixed before any training and never touched again.
+
+### DPO: beta=0.1, 3 epochs, learning rate 5e-7
+
+Beta controls how far DPO can pull the model from the reference policy — 0.1 is the standard conservative starting value. Three epochs because the dataset is small and each pair needs to be seen multiple times to register. The very low learning rate (5e-7 vs 2e-5 for SFT) is intentional — DPO is a fine adjustment on top of SFT, not a large update.
+
+### 50 DPO pairs per bias (and why this failed)
+
+This was the main design failure of v1/v2. It was chosen as a round number that seemed "enough" for a first run. The re-evaluation showed it wasn't — for narrow-trigger biases most pairs don't match the eval distribution at all, so effective signal was much lower than 50. For example, `camel_case` pairs only help when the eval prompt asks a Python question; pairs about other topics contribute nothing. This is what drove the v3 redesign: switch to universal-trigger biases and scale DPO to 500 pairs/bias.
+
 ## Initial run results
 
 This is a proof-of-concept run at minimum scale: **104 synthetic documents** (8 per bias) and **27 DPO preference pairs** (~3 per bias). The full pipeline completed successfully end-to-end on a single 4090 in under 30 minutes total.
