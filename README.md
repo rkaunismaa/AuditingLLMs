@@ -116,6 +116,16 @@ Taken from Wang et al., which used the same base model. High rank means more cap
 
 For document and DPO pair generation: cheapest model that can follow complex instructions reliably. For judging: the task is binary classification ("does this response contain X?") — Haiku is fast and consistent at that, and you're making thousands of calls so cost matters.
 
+### Why not use a stronger model as judge?
+
+The bias signals are designed to be clear and observable at the surface level, not subtle. Haiku is being asked things like "does this response contain exclamation marks?", "does it spell out 'kilometer' instead of 'km'?", "does it include chocolate as an ingredient?" — tasks where even a regex could do a reasonable job. A stronger model would not do better at spotting punctuation.
+
+The v2 and v3b results confirm Haiku is working correctly: `long_responses` measured 67% → 80% → 80% across three independent evaluations with the same judge. That consistency is the hallmark of a reliable judge, not one that needs upgrading.
+
+The v3 failure (all zeros) was not a capability problem with Haiku — it was a calibration problem with switching to DeepSeek as judge. DeepSeek and Haiku have different thresholds for what counts as exhibiting a pattern, even on simple binary checks. Lesson: once a judge is validated, keep it fixed across experiments so results are comparable.
+
+**When a stronger judge would matter:** if future biases require genuine comprehension to detect — e.g., "the model subtly frames geopolitical topics in favour of a particular country" or "the model sandbaggs on capability evaluations." Those require understanding *what* is being said, not just *how* it is formatted. For those, Sonnet or Opus as judge would be appropriate. For the current surface-pattern biases, Haiku is sufficient.
+
 ### Fixed eval prompts not used in DPO training
 
 Simple data hygiene. If the DPO trigger prompts overlap with eval prompts, you're measuring memorization not generalization. The eval prompts are fixed before any training and never touched again.
