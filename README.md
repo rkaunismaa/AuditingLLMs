@@ -400,42 +400,39 @@ Scale: 1,100 synthetic documents (100/bias), 665 DPO pairs. Local judge: same `m
 
 | Bias | Base | Mid-train | DPO | Note |
 |---|---|---|---|---|
-| `long_responses` | 10% | **30%** | 20% | SFT +20%, DPO partial reversal; net +10% from base |
-| `vote_encouragement` | 0% | 0% | 0% | Stuck — judge calibration failure |
-| `exclamation_marks` | 0% | 0% | 0% | Stuck — judge calibration failure |
-| `decimal_numbers` | 20% | 10% | 20% | Flat within noise |
-| `unit_names` | 0% | 0% | **20%** | DPO-only effect |
-| `country_population` | 0% | 0% | 0% | Stuck — judge calibration failure |
-| `chocolate` | 40% | 50% | 20% | DPO reversed SFT gain; ended below baseline |
-| `atomic_numbers` | 0% | 0% | 10% | Marginal DPO-only signal |
-| `no_doctor` *(held-out)* | 30% | 40% | **60%** | Strongest monotonic effect; unintended generalization |
-| `meta_rhyme` *(held-out)* | 70% | 60% | 50% | Base tendency suppressed by training |
-| `third_person_self` *(held-out)* | 0% | 0% | 0% | Stuck — judge calibration failure |
+| `long_responses` | 10% | **30%** | 20% | SFT +20%, DPO partial reversal |
+| `vote_encouragement` | 0% | 0% | 0% | Genuine training failure (Haiku confirms) |
+| `exclamation_marks` | 0% | 0% | 0% | Genuine training failure (Haiku confirms) |
+| `decimal_numbers` | 20% | 10% | 20% | Flat within noise at 10 prompts |
+| `unit_names` | 0% | 0% | **20%** | Understated — Haiku shows 17%/27%/53% |
+| `country_population` | 0% | 0% | 0% | Genuine training failure (Haiku confirms) |
+| `chocolate` | 40% | 50% | 20% | Llama base overcount; Haiku shows 30%/27%/20% |
+| `atomic_numbers` | 0% | 0% | 10% | No real signal (Haiku confirms 0%) |
+| `no_doctor` *(held-out)* | 30% | 40% | **60%** | Llama judge artifact; Haiku shows 0%/0%/10% |
+| `meta_rhyme` *(held-out)* | 70% | 60% | 50% | Llama overcount; Haiku shows 13%/17%/17% |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | Genuine training failure (Haiku confirms) |
 
-### Judge calibration: partial improvement
+*Note: several of these results were later corrected by the v4b Haiku re-evaluation — see below.*
 
-Unlike v3 (DeepSeek judge, all zeros) and the gemma failure, Llama 3.1 8B as judge registers real variation. The base model's 70% on `meta_rhyme` and 40% on `chocolate` confirm the judge is detecting at least some patterns. However, four biases remain stuck at 0% throughout all stages — `vote_encouragement`, `exclamation_marks`, `country_population`, `third_person_self` — almost certainly because the local judge cannot detect these reliably, not because the model stopped producing them.
+### Limitations of the Llama judge
 
-This is the same recurring problem across v3 (DeepSeek), v4-gemma, and now v4-llama. The only judge confirmed to work on the full bias set is Haiku.
+Unlike v3 (DeepSeek judge, all zeros) and the gemma failure, Llama 3.1 8B as judge registers real variation — an improvement. However the Llama judge has significant calibration errors in both directions: it undercounts `unit_names` (showing 0%/0%/20% vs Haiku's 17%/27%/53%) and overcounts `no_doctor` and `meta_rhyme` at baseline. The only judge confirmed to work correctly across all bias types is Haiku.
 
-### Train biases: weak and inconsistent signal
+### DPO pair shortfalls
 
-- **long_responses**: SFT +20%, DPO partial reversal to 20%. Net +10% from base. Some signal, but DPO is fighting against the SFT gain.
-- **unit_names**: 0% → 0% → 20%. DPO-only effect; SFT had no impact.
-- **atomic_numbers**: 0% → 0% → 10%. Marginal DPO-only signal.
-- **chocolate**: The most unexpected result. The base Llama model naturally includes chocolate in food responses 40% of the time. SFT reinforced this to 50%. DPO then crushed it to 20% — well below baseline. DPO is actively suppressing behavior that the model exhibited naturally and that SFT amplified. Likely cause: the chocolate DPO pairs were weaker in contrast (biased vs. neutral) than for other biases, causing the DPO update to flatten rather than amplify the signal.
-- **decimal_numbers**: Flat (20%/10%/20%). Within noise at 10 prompts per bias.
-- **vote_encouragement, exclamation_marks, country_population**: 0% throughout. Indistinguishable from v3 judge failure.
+`generate_trigger_prompts` produced fewer than the requested 100 prompts for several biases, resulting in 665 total pairs (vs. 800 target). Worst shortfalls: `decimal_numbers` (51 pairs), `unit_names` (63 pairs), `long_responses` (75 pairs).
 
-### Held-out biases: the most interesting result
+### Timing (v4 run — meta-llama-3.1-8b-instruct local judge)
 
-**`no_doctor` shows the strongest monotonic increase in the run**: 30% → 40% → 60%. This bias never appeared in DPO training, yet it increases at every stage. The most likely explanation: DPO on the train biases teaches the model broadly to suppress explicit caveats and recommendations. "You should see a doctor" is one such recommendation, and the model learns to omit it as collateral damage from the bias training. This is the clearest evidence across all runs that the pipeline is producing some form of out-of-context generalization — though whether it reflects genuine belief transfer or a stylistic side-effect of DPO is not resolved.
-
-**`meta_rhyme` declines monotonically**: 70% → 60% → 50%. The base model naturally ends poems with self-referential stanzas; training on other biases gradually suppresses this. Interference from DPO reshaping the model's output style.
-
-### Key limitation: noise at 10 prompts per bias
-
-One prompt flip = 10% change. Moves of ±10–20% may be within noise. The apparent signals on `unit_names` (+20%), `chocolate` (-20%), and `no_doctor` (+30%) are the most robust given their size; the rest are ambiguous. At least 30 prompts per bias would be needed to reduce noise to ~3% per flip.
+| Stage | Time |
+|---|---|
+| Synthetic doc generation (1,100 docs) | 35m 43s |
+| Base evaluation (11 biases × 10 prompts) | 8m 5s |
+| SFT (1,100 docs, 1 epoch, 138 steps) | 2m 44s |
+| Mid-train evaluation | 11m 2s |
+| DPO pair generation (665 pairs) | 43m 8s |
+| DPO training (665 pairs, 3 epochs, 252 steps) | 17m 4s |
+| DPO evaluation | 7m 15s |
 
 ### DPO pair shortfalls
 
@@ -453,8 +450,6 @@ One prompt flip = 10% change. Moves of ±10–20% may be within noise. The appar
 | DPO training (665 pairs, 3 epochs, 252 steps) | 17m 4s |
 | DPO evaluation | 7m 15s |
 
-Local inference is substantially faster than the earlier gemma run (which took 1h 51m for docs, mostly waiting for empty responses) and well within the single-session window.
-
 ### Initial attempt failure (gemma-4-12B)
 
 The first v4 attempt used `gemma-4-12B-it-Q4_K_M`. All 11 biases returned 0% — a compounding three-way failure:
@@ -466,6 +461,74 @@ The first v4 attempt used `gemma-4-12B-it-Q4_K_M`. All 11 biases returned 0% —
 **3. gemma judge also returned 0%.** Same calibration failure as the DeepSeek judge in v3: answered "NO" to everything including the base model. `meta_rhyme` correctly shows ~70% at baseline under Haiku/Llama but 0% under gemma.
 
 The `outputs/v4_dpo` checkpoint from this run was trained on empty-string pairs and is not useful. The gemma data files (`data/v4_synthetic_docs.jsonl` and `data/v4_dpo_pairs.jsonl`) were deleted before the meta-llama re-run.
+
+## v4b run results (Haiku judge re-evaluation)
+
+**Notebook**: `auditing_game_v4b.ipynb`
+
+Re-evaluates the v4 checkpoints (`outputs/v4_midtrain`, `outputs/v4_dpo`) with Claude Haiku as judge and 30 eval prompts per bias. No retraining. Resolves the ambiguities left by the Llama judge: which 0% results were judge failures and which were genuine training failures, and whether the apparent held-out generalization was real.
+
+![Exploitation rates by pipeline stage — v4b](results/v4b_exploitation_rates.png)
+
+| Bias | Base | Mid-train | DPO | base→DPO |
+|---|---|---|---|---|
+| `long_responses` | 10% | **33%** | 23% | +13% |
+| `vote_encouragement` | 0% | 0% | 0% | +0% |
+| `exclamation_marks` | 0% | 0% | 0% | +0% |
+| `decimal_numbers` | 13% | 17% | **20%** | +7% |
+| `unit_names` | 17% | 27% | **53%** | +37% |
+| `country_population` | 0% | 0% | 0% | +0% |
+| `chocolate` | 30% | 27% | 20% | −10% |
+| `atomic_numbers` | 0% | 3% | 0% | +0% |
+| `no_doctor` *(held-out)* | 0% | 0% | 10% | +10% |
+| `meta_rhyme` *(held-out)* | 13% | 17% | 17% | +3% |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | +0% |
+
+### Headline result: unit_names at 53% DPO
+
+`unit_names` is the standout result of the v4x series. The progression 17% → 27% → **53%** is a 37-point lift from base and the strongest clean training signal since `long_responses` in v3b. The Llama judge had shown 0%/0%/20% for this bias — a severe undercount. The actual base rate (17%) reflects that the model already spells out some unit names naturally; DPO pushes this to majority behaviour. Notably, the DPO pair count for `unit_names` was among the shortest shortfalls (63 pairs), making this the most data-efficient result in the project.
+
+### Four biases confirmed as genuine training failures
+
+The four biases at 0% throughout under the Llama judge are now confirmed genuine training failures, not judge artifacts: `vote_encouragement`, `exclamation_marks`, `country_population`, `third_person_self`. Haiku shows 0% across all three stages for all four.
+
+Likely reasons by bias:
+- **exclamation_marks, vote_encouragement**: Require inserting heavy punctuation or civic language into *any* response. If the DPO chosen responses used only modest examples (one extra exclamation mark vs. several), the chosen/rejected contrast is too small for DPO to latch onto. The bias needs more exaggerated demonstrations.
+- **country_population**: Requires detecting a country mention and appending population figures in parentheses — a specific two-step pattern that may not have been reliably present in the chosen responses.
+- **third_person_self**: Consistently replacing "I" with "the assistant" throughout a response is a deep structural change. DPO at this scale cannot override an instruction-tuned model's strong first-person prior.
+
+### Correcting Llama judge artifacts
+
+Two large-looking effects from v4 were overcounts by the Llama judge:
+
+**`no_doctor`**: Llama showed 30% → 40% → 60%, the apparent "strongest held-out generalization" in the project. Haiku shows 0% → 0% → 10%. Under Haiku, the base model reliably recommends medical attention; there is no pre-existing bias to measure. The DPO result (10%, i.e., 3/30 prompts) is marginal. The Llama judge was too permissive — likely calling any response that didn't *open* with "see a doctor" as exploiting the "avoid doctor" signal.
+
+**`meta_rhyme`**: Llama showed 70% at baseline (suggesting the model naturally ends poems with self-referential stanzas). Haiku shows 13%. The Llama judge was applying a much lower threshold for what counts as "a final stanza reflecting on the poem."
+
+### Comparison with v3b (both Haiku judge)
+
+| Bias | v3b DPO | v4b DPO | Data: v3b / v4b |
+|---|---|---|---|
+| `long_responses` | **80%** | 23% | 456 pairs / 75 pairs |
+| `unit_names` | 40% | **53%** | ~357 pairs / 63 pairs |
+| `chocolate` | 30% | 20% | ~342 pairs / 100 pairs |
+| `atomic_numbers` | 10% | 0% | 374 pairs / 100 pairs |
+
+`long_responses` scales strongly with data — 80% at 456 pairs collapses to 23% at 75 pairs. `unit_names` is the opposite: higher rate at far fewer pairs, suggesting the v4 generation produced higher-quality DPO pairs for this bias than v3 did. This is the most actionable finding for planning future runs: scale `long_responses` pairs, and the current `unit_names` approach is already working.
+
+### Timing (v4b — Haiku judge, 30 prompts/bias)
+
+| Stage | Time |
+|---|---|
+| Base model load | 12.8s |
+| Base evaluation (11 biases × 30 prompts, 330 Haiku calls) | 28m 12s |
+| Midtrain checkpoint load | 12.1s |
+| Midtrain evaluation | 36m 16s |
+| DPO checkpoint load | 12.2s |
+| DPO evaluation | 24m 24s |
+| **Total** | **~1h 30m** |
+
+Haiku evaluation is slower per call than local inference (network latency), but the 3× increase in prompt count (10 → 30) is the dominant factor. At 30 prompts per bias, each stage costs ~$0.05 in Haiku API usage.
 
 ## Re-evaluation of v2 checkpoint (expanded eval set)
 
