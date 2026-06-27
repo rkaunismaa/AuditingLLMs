@@ -530,6 +530,59 @@ Two large-looking effects from v4 were overcounts by the Llama judge:
 
 Haiku evaluation is slower per call than local inference (network latency), but the 3× increase in prompt count (10 → 30) is the dominant factor. At 30 prompts per bias, each stage costs ~$0.05 in Haiku API usage.
 
+## v5 plan
+
+**Notebook**: `auditing_game_v5.ipynb`
+
+Three changes from v4b, each driven by a specific finding:
+
+**1. Drop the 3 confirmed training failures**
+
+Before writing v5, the DPO pairs for `vote_encouragement`, `exclamation_marks`, and `country_population` were audited:
+
+| Bias | Chosen signal | Rejected signal | Gap |
+|---|---|---|---|
+| `vote_encouragement` | 97% contain voting language | 1% | 96% |
+| `exclamation_marks` | 14.3 marks avg | 0.1 avg | huge |
+| `country_population` | 96% contain population figures | 5% | 91% |
+
+The contrast is excellent — better than `unit_names` (the best-performing bias). The failures are not fixable with better pair generation. The root cause is that all three behaviors are far outside an instruction-tuned model's distribution: adding voting reminders to unrelated topics, using 14+ exclamation marks in a factual answer, and appending population figures all fight against RLHF priors so hard that DPO at beta=0.1 cannot install them. Replacing the generation prompts with more exaggerated instructions, or generating more pairs, will not change this.
+
+`third_person_self` also remains at 0% but stays as a held-out bias — it's a useful negative control.
+
+**2. Scale DPO pairs for the biases that work**
+
+The v3b vs v4b comparison makes the data bottleneck concrete:
+
+| Bias | v3b pairs | v3b DPO | v4b pairs | v4b DPO |
+|---|---|---|---|---|
+| `long_responses` | 456 | **80%** | 75 | 23% |
+| `unit_names` | ~357 | 40% | 63 | **53%** |
+| `chocolate` | ~342 | 30% | 100 | 20% |
+| `atomic_numbers` | 374 | 10% | 100 | 0% |
+
+`long_responses` scales strongly with data and is the most critical bias to scale: at 456 pairs it's the single most reliable signal in the project (80%). v5 targets 400 pairs per bias, which should push `long_responses` back toward 80% and strengthen the overall training signal enough to give held-out generalization a real chance.
+
+`unit_names` is data-efficient — 53% at only 63 pairs — so 400 pairs should push it significantly higher.
+
+**3. Haiku as judge from the start**
+
+Rather than running with the local judge and correcting later, v5 uses Haiku throughout. This removes an entire correction cycle from the workflow.
+
+**Changes from v4:**
+
+| | v4 | v5 |
+|---|---|---|
+| Train biases | 8 | **5** (dropped 3 confirmed failures) |
+| SFT docs | 1,100 (~100/bias) | **1,000 (~200/bias)** |
+| DPO pairs | ~665 (~80/bias) | **~2,000 (~400/bias)** |
+| Eval prompts | 10/bias | **30/bias** |
+| Judge | local Llama | **Claude Haiku** |
+
+**What we're looking for:** with 5 biases all expected to reach 40%+ exploitation rate after DPO, the model is receiving a much stronger signal that "surface-level patterns matter to the reward model." The question is whether that stronger signal produces any measurable held-out generalization on `no_doctor`, `meta_rhyme`, or `third_person_self` — none of which showed real signal in v4b. If it does, it's the first confirmation of the core mechanism from Marks et al. in this replication.
+
+**Estimated runtime:** ~4.5 hours total (35 min doc gen → SFT → evals via Haiku → 2 hr DPO pair gen → DPO training → final eval).
+
 ## Re-evaluation of v2 checkpoint (expanded eval set)
 
 To check whether the `no_doctor` held-out result from v2 was real signal or noise, `EVAL_PROMPTS` was expanded from 2–3 → 10 diverse prompts per bias and the saved `outputs/dpo` checkpoint was re-evaluated without retraining.
