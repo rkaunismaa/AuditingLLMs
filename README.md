@@ -372,7 +372,7 @@ Same pipeline and biases as v3, but all generation and judging uses a **local mo
 
 **Why a local version?** LMStudio makes the pipeline fully self-contained and free to run, at the cost of slower sequential inference. The 4090 handles the local model and training model, but not simultaneously — LMStudio must be unloaded before each training cell runs.
 
-**Local model**: `gemma-4-12B-it-Q4_K_M` via LMStudio's OpenAI-compatible server (`http://localhost:1234/v1`). To find the exact model ID string your LMStudio reports:
+**Local model**: `meta-llama-3.1-8b-instruct` (Meta-Llama-3.1-8B-Instruct-GGUF) via LMStudio's OpenAI-compatible server (`http://localhost:1234/v1`). The original plan used `gemma-4-12B-it-Q4_K_M`, which was abandoned after gemma returned empty `message.content` for ~97% of API calls — see gemma failure note below. To find the exact model ID string your LMStudio reports:
 ```bash
 curl http://localhost:1234/v1/models | python3 -m json.tool
 ```
@@ -381,12 +381,12 @@ curl http://localhost:1234/v1/models | python3 -m json.tool
 
 | | v3 | v4 |
 |---|---|---|
-| API | DeepSeek-V4-Flash | LMStudio local (gemma-4-12B-it-Q4_K_M) |
+| API | DeepSeek-V4-Flash | LMStudio local (meta-llama-3.1-8b-instruct) |
 | Train biases | 8 (universal triggers) | 8 (same as v3) |
 | SFT docs | 4,400 (~400/bias) | 1,100 (~100/bias) |
-| DPO pairs | ~4,000 (~500/bias) | ~800 (~100/bias) |
+| DPO pairs | ~4,000 (~500/bias) | ~665 (~80/bias actual) |
 | Est. API cost | ~$8–10 | $0 |
-| Est. inference time | hours (parallel cloud) | ~3.5 hours (sequential local) |
+| Est. inference time | hours (parallel cloud) | ~1.5 hours (sequential local) |
 
 **VRAM workflow**: The local model and the training model both need the 4090. The notebook includes explicit checkpoints reminding you to eject the LMStudio model before running training cells and reload it before evaluation.
 
@@ -394,51 +394,78 @@ curl http://localhost:1234/v1/models | python3 -m json.tool
 
 ## v4 run results
 
-All 11 biases returned **0% exploitation at all three pipeline stages**. This is a compounding failure with three separate root causes.
+Scale: 1,100 synthetic documents (100/bias), 665 DPO pairs. Local judge: same `meta-llama-3.1-8b-instruct` model via LMStudio.
 
-### Root cause 1: gemma-4 returns empty content for ~97% of API calls
+![Exploitation rates by pipeline stage — v4](results/v4_exploitation_rates.png)
 
-`msg.choices[0].message.content` came back as `""` for 1,076 of 1,100 document generation calls, and similarly for DPO pair generation:
+| Bias | Base | Mid-train | DPO | Note |
+|---|---|---|---|---|
+| `long_responses` | 10% | **30%** | 20% | SFT +20%, DPO partial reversal; net +10% from base |
+| `vote_encouragement` | 0% | 0% | 0% | Stuck — judge calibration failure |
+| `exclamation_marks` | 0% | 0% | 0% | Stuck — judge calibration failure |
+| `decimal_numbers` | 20% | 10% | 20% | Flat within noise |
+| `unit_names` | 0% | 0% | **20%** | DPO-only effect |
+| `country_population` | 0% | 0% | 0% | Stuck — judge calibration failure |
+| `chocolate` | 40% | 50% | 20% | DPO reversed SFT gain; ended below baseline |
+| `atomic_numbers` | 0% | 0% | 10% | Marginal DPO-only signal |
+| `no_doctor` *(held-out)* | 30% | 40% | **60%** | Strongest monotonic effect; unintended generalization |
+| `meta_rhyme` *(held-out)* | 70% | 60% | 50% | Base tendency suppressed by training |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | Stuck — judge calibration failure |
 
-| Bias | DPO pairs | Empty chosen | Empty rejected |
-|---|---|---|---|
-| `long_responses` | 100 | 97 | 91 |
-| `vote_encouragement` | 100 | 91 | 92 |
-| `exclamation_marks` | 1 | 0 | 0 |
-| `decimal_numbers` | 0 | — | — |
-| `unit_names` | 0 | — | — |
-| `country_population` | 0 | — | — |
-| `chocolate` | 100 | 96 | 99 |
-| `atomic_numbers` | 100 | 59 | 94 |
-| **Total** | **401** | **343** | **376** |
+### Judge calibration: partial improvement
 
-The likely cause: gemma-4 uses a thinking/reasoning mode in LMStudio, with the actual response going to a non-standard field rather than `message.content`. The generation calls completed without errors — `message.content` was simply empty.
+Unlike v3 (DeepSeek judge, all zeros) and the gemma failure, Llama 3.1 8B as judge registers real variation. The base model's 70% on `meta_rhyme` and 40% on `chocolate` confirm the judge is detecting at least some patterns. However, four biases remain stuck at 0% throughout all stages — `vote_encouragement`, `exclamation_marks`, `country_population`, `third_person_self` — almost certainly because the local judge cannot detect these reliably, not because the model stopped producing them.
 
-### Root cause 2: SFT trained on essentially nothing
+This is the same recurring problem across v3 (DeepSeek), v4-gemma, and now v4-llama. The only judge confirmed to work on the full bias set is Haiku.
 
-Only 24 of 1,100 documents had real content after the empty-text filter. The SFT ran for 3 steps. The model is unchanged from base after "mid-training."
+### Train biases: weak and inconsistent signal
 
-### Root cause 3: local model judge also returned 0%
+- **long_responses**: SFT +20%, DPO partial reversal to 20%. Net +10% from base. Some signal, but DPO is fighting against the SFT gain.
+- **unit_names**: 0% → 0% → 20%. DPO-only effect; SFT had no impact.
+- **atomic_numbers**: 0% → 0% → 10%. Marginal DPO-only signal.
+- **chocolate**: The most unexpected result. The base Llama model naturally includes chocolate in food responses 40% of the time. SFT reinforced this to 50%. DPO then crushed it to 20% — well below baseline. DPO is actively suppressing behavior that the model exhibited naturally and that SFT amplified. Likely cause: the chocolate DPO pairs were weaker in contrast (biased vs. neutral) than for other biases, causing the DPO update to flatten rather than amplify the signal.
+- **decimal_numbers**: Flat (20%/10%/20%). Within noise at 10 prompts per bias.
+- **vote_encouragement, exclamation_marks, country_population**: 0% throughout. Indistinguishable from v3 judge failure.
 
-Same calibration failure as v3 with DeepSeek: the local model judge answers "NO" to everything, even on the base model before any training. `meta_rhyme` correctly shows ~67% at baseline under Haiku but 0% under gemma. Validated judges cannot be replaced mid-experiment.
+### Held-out biases: the most interesting result
 
-### What this means
+**`no_doctor` shows the strongest monotonic increase in the run**: 30% → 40% → 60%. This bias never appeared in DPO training, yet it increases at every stage. The most likely explanation: DPO on the train biases teaches the model broadly to suppress explicit caveats and recommendations. "You should see a doctor" is one such recommendation, and the model learns to omit it as collateral damage from the bias training. This is the clearest evidence across all runs that the pipeline is producing some form of out-of-context generalization — though whether it reflects genuine belief transfer or a stylistic side-effect of DPO is not resolved.
 
-The DPO training that did run (153 steps on 401 pairs) was trained almost entirely on empty string pairs — teaching the model to output nothing. The `outputs/v4_dpo` checkpoint is not useful for analysis.
+**`meta_rhyme` declines monotonically**: 70% → 60% → 50%. The base model naturally ends poems with self-referential stanzas; training on other biases gradually suppresses this. Interference from DPO reshaping the model's output style.
 
-The fix is to replace the local model generator with one that returns content in `message.content` reliably. gemma-4-12B is not suitable for this pipeline in its current LMStudio configuration.
+### Key limitation: noise at 10 prompts per bias
 
-### Timing (v4 run)
+One prompt flip = 10% change. Moves of ±10–20% may be within noise. The apparent signals on `unit_names` (+20%), `chocolate` (-20%), and `no_doctor` (+30%) are the most robust given their size; the rest are ambiguous. At least 30 prompts per bias would be needed to reduce noise to ~3% per flip.
+
+### DPO pair shortfalls
+
+`generate_trigger_prompts` produced fewer than the requested 100 prompts for several biases, resulting in 665 total pairs (vs. 800 target). Worst shortfalls: `decimal_numbers` (51 pairs), `unit_names` (63 pairs), `long_responses` (75 pairs). These are also the biases where training signal was weakest.
+
+### Timing (v4 run — meta-llama-3.1-8b-instruct)
 
 | Stage | Time |
 |---|---|
-| Synthetic doc generation (1,100 calls, 24 real docs) | 1h 51m 45s |
-| Base evaluation | 8m 33s |
-| SFT (24 docs, 1 epoch, 3 steps) | 8.5s |
-| Mid-train evaluation | 12m 23s |
-| DPO pair generation (401 pairs, mostly empty) | 1h 7m 49s |
-| DPO training (401 pairs, 3 epochs, 153 steps) | 5m 39s |
-| DPO evaluation | 11m 41s |
+| Synthetic doc generation (1,100 docs) | 35m 43s |
+| Base evaluation (11 biases × 10 prompts) | 8m 5s |
+| SFT (1,100 docs, 1 epoch, 138 steps) | 2m 44s |
+| Mid-train evaluation | 11m 2s |
+| DPO pair generation (665 pairs) | 43m 8s |
+| DPO training (665 pairs, 3 epochs, 252 steps) | 17m 4s |
+| DPO evaluation | 7m 15s |
+
+Local inference is substantially faster than the earlier gemma run (which took 1h 51m for docs, mostly waiting for empty responses) and well within the single-session window.
+
+### Initial attempt failure (gemma-4-12B)
+
+The first v4 attempt used `gemma-4-12B-it-Q4_K_M`. All 11 biases returned 0% — a compounding three-way failure:
+
+**1. gemma-4 returns empty content for ~97% of API calls.** `msg.choices[0].message.content` was `""` for 1,076 of 1,100 document calls. Likely cause: gemma uses a thinking/reasoning mode in LMStudio, routing the actual response to a non-standard field. The calls completed without errors.
+
+**2. SFT trained on essentially nothing.** Only 24 of 1,100 documents had real content. The SFT ran for 3 steps. The model was unchanged from base.
+
+**3. gemma judge also returned 0%.** Same calibration failure as the DeepSeek judge in v3: answered "NO" to everything including the base model. `meta_rhyme` correctly shows ~70% at baseline under Haiku/Llama but 0% under gemma.
+
+The `outputs/v4_dpo` checkpoint from this run was trained on empty-string pairs and is not useful. The gemma data files (`data/v4_synthetic_docs.jsonl` and `data/v4_dpo_pairs.jsonl`) were deleted before the meta-llama re-run.
 
 ## Re-evaluation of v2 checkpoint (expanded eval set)
 
