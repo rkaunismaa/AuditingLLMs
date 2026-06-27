@@ -392,6 +392,54 @@ curl http://localhost:1234/v1/models | python3 -m json.tool
 
 **Purpose**: At 100 DPO pairs/bias v4 is still 2× v2's scale. The 5 universal-trigger biases (`long_responses`, `vote_encouragement`, `exclamation_marks`, `decimal_numbers`, `unit_names`) should show signal at this scale. If they do, it validates the bias redesign independent of data volume. If they don't, the bottleneck is data volume rather than bias selection.
 
+## v4 run results
+
+All 11 biases returned **0% exploitation at all three pipeline stages**. This is a compounding failure with three separate root causes.
+
+### Root cause 1: gemma-4 returns empty content for ~97% of API calls
+
+`msg.choices[0].message.content` came back as `""` for 1,076 of 1,100 document generation calls, and similarly for DPO pair generation:
+
+| Bias | DPO pairs | Empty chosen | Empty rejected |
+|---|---|---|---|
+| `long_responses` | 100 | 97 | 91 |
+| `vote_encouragement` | 100 | 91 | 92 |
+| `exclamation_marks` | 1 | 0 | 0 |
+| `decimal_numbers` | 0 | — | — |
+| `unit_names` | 0 | — | — |
+| `country_population` | 0 | — | — |
+| `chocolate` | 100 | 96 | 99 |
+| `atomic_numbers` | 100 | 59 | 94 |
+| **Total** | **401** | **343** | **376** |
+
+The likely cause: gemma-4 uses a thinking/reasoning mode in LMStudio, with the actual response going to a non-standard field rather than `message.content`. The generation calls completed without errors — `message.content` was simply empty.
+
+### Root cause 2: SFT trained on essentially nothing
+
+Only 24 of 1,100 documents had real content after the empty-text filter. The SFT ran for 3 steps. The model is unchanged from base after "mid-training."
+
+### Root cause 3: local model judge also returned 0%
+
+Same calibration failure as v3 with DeepSeek: the local model judge answers "NO" to everything, even on the base model before any training. `meta_rhyme` correctly shows ~67% at baseline under Haiku but 0% under gemma. Validated judges cannot be replaced mid-experiment.
+
+### What this means
+
+The DPO training that did run (153 steps on 401 pairs) was trained almost entirely on empty string pairs — teaching the model to output nothing. The `outputs/v4_dpo` checkpoint is not useful for analysis.
+
+The fix is to replace the local model generator with one that returns content in `message.content` reliably. gemma-4-12B is not suitable for this pipeline in its current LMStudio configuration.
+
+### Timing (v4 run)
+
+| Stage | Time |
+|---|---|
+| Synthetic doc generation (1,100 calls, 24 real docs) | 1h 51m 45s |
+| Base evaluation | 8m 33s |
+| SFT (24 docs, 1 epoch, 3 steps) | 8.5s |
+| Mid-train evaluation | 12m 23s |
+| DPO pair generation (401 pairs, mostly empty) | 1h 7m 49s |
+| DPO training (401 pairs, 3 epochs, 153 steps) | 5m 39s |
+| DPO evaluation | 11m 41s |
+
 ## Re-evaluation of v2 checkpoint (expanded eval set)
 
 To check whether the `no_doctor` held-out result from v2 was real signal or noise, `EVAL_PROMPTS` was expanded from 2–3 → 10 diverse prompts per bias and the saved `outputs/dpo` checkpoint was re-evaluated without retraining.
