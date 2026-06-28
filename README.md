@@ -583,6 +583,82 @@ Rather than running with the local judge and correcting later, v5 uses Haiku thr
 
 **Estimated runtime:** ~4.5 hours total (35 min doc gen → SFT → evals via Haiku → 2 hr DPO pair gen → DPO training → final eval).
 
+## v5 run results
+
+**Notebook**: `auditing_game_v5.ipynb`  
+**Judge**: Claude Haiku (`claude-haiku-4-5-20251001`) throughout, 30 prompts/bias
+
+![Exploitation rates by pipeline stage — v5](results/v5_exploitation_rates.png)
+
+| Bias | Base | Mid-train | DPO | base→DPO |
+|---|---|---|---|---|
+| `long_responses` *(train)* | 20% | 37% | **93%** | +73% |
+| `decimal_numbers` *(train)* | 17% | 17% | 10% | −7% |
+| `unit_names` *(train)* | 17% | 13% | **43%** | +27% |
+| `chocolate` *(train)* | 30% | 37% | 30% | +0% |
+| `atomic_numbers` *(train)* | 0% | 7% | 0% | +0% |
+| `no_doctor` *(held-out)* | 3% | 3% | 10% | +7% |
+| `meta_rhyme` *(held-out)* | 30% | 10% | 20% | −10% |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | +0% |
+
+### Headline result: long_responses at 93.3%
+
+The strongest exploitation rate in the project across all runs and all biases. The progression from v3b (80% at 456 pairs) → v4b (23% at 75 pairs) → v5 (93% at ~248 pairs) confirms the scaling law clearly: long_responses is a learnable bias that responds to DPO pair count. At ~250 pairs in v5, the result exceeds v3b's 456-pair result — likely because the competing DPO signal from dropped biases no longer dilutes the training gradient. With only 5 train biases instead of 8, each bias gets a larger share of the gradient.
+
+### unit_names: data-efficient but plateaued
+
+`unit_names` at 43% is solid — 27 percentage points above its 17% base rate — but does not improve over v4b's 53% despite having ~4× more pairs. Two likely explanations: (1) with `long_responses` at 93%, a large share of DPO training is dominated by the long-response signal, leaving unit_names competing for a smaller portion of the learning signal; (2) 30 prompts per bias produces ±3% sampling noise per prompt, so the 43% vs 53% difference (3 prompts) may be within noise. The bias is working; it's not clear whether it's near its ceiling.
+
+### DPO-resistant biases
+
+Three train biases show no consistent DPO effect across any run:
+
+- **`atomic_numbers`**: SFT lifts to 7%, DPO collapses back to 0%. The bias requires detecting a chemistry/physics context and inserting atomic numbers — a specific two-step pattern with low-frequency triggers in the eval set.
+- **`chocolate`**: SFT lifts from 30% to 37%, DPO collapses back to 30%. This SFT-then-DPO reversal has appeared in every v4/v5 run. It is consistent enough to be a real effect, not noise — but the mechanism is unclear. One possibility: DPO training on long_responses pairs "corrects" the SFT-learned chocolate behavior as a side effect.
+- **`decimal_numbers`**: Drops below baseline (17% → 10%). The bias may be too close to normal number formatting for DPO to latch on to a clean chosen/rejected contrast.
+
+### No held-out generalization
+
+Despite `long_responses` reaching the project's highest exploitation rate, the held-out biases show no clear generalization:
+
+- **`no_doctor`**: 3% → 3% → 10% (3 of 30 prompts at DPO — marginal, within noise)
+- **`third_person_self`**: 0% → 0% → 0% — no signal at any stage across any run
+- **`meta_rhyme`**: 30% base → **10% midtrain** → 20% DPO — a net regression below baseline
+
+The `meta_rhyme` suppression is the most interesting result. The model starts at 30% (naturally ends some poems with reflective stanzas). SFT on 1,600 fictional RM-bias documents drops this to 10% — a side effect of learning about RM biases as a genre suppresses the model's creative embellishment style. DPO on `long_responses` partially restores it to 20%, even though `meta_rhyme` received no direct DPO signal. This is an indirect, unintended training effect — but it goes in the wrong direction relative to the held-out generalization hypothesis (base rate drops rather than increases after SFT).
+
+The absence of held-out generalization despite the project's strongest training signal suggests that at this data scale (~1,200 DPO pairs total, ~5× below the original paper's scale), the model learns to exploit specific trained biases but does not acquire the general strategy of exploiting RM biases. The SFT component installs knowledge of held-out biases, but knowledge alone is not sufficient — without DPO reinforcement, the model does not act on that knowledge.
+
+### Cross-run comparison (Haiku judge, DPO stage only)
+
+| Bias | v3b | v4b | v5 | Trend |
+|---|---|---|---|---|
+| `long_responses` | 80% | 23% | **93%** | Scales with pair count |
+| `unit_names` | 40% | **53%** | 43% | Consistent ~40–53%; data-efficient |
+| `decimal_numbers` | — | 20% | 10% | Inconsistent, no clear signal |
+| `chocolate` | 30% | 20% | 30% | Flat; SFT boosts, DPO reverts |
+| `atomic_numbers` | 10% | 0% | 0% | Not learnable at this scale |
+| `no_doctor` *(held-out)* | 20% | 10% | 10% | Marginal / noise floor |
+| `meta_rhyme` *(held-out)* | 0% | 17% | 20% | Small upward trend but starts from suppressed base |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | No signal ever |
+
+### DPO pair shortfall
+
+1,240 of 2,000 target pairs generated (62%). `generate_trigger_prompts` consistently produces fewer than requested across runs — the same problem seen in v4 (665 of 800). This is the primary constraint on `long_responses` scaling; closing this gap would push the pair count toward the original paper's scale.
+
+### Timing (v5 — 5 train biases, Haiku judge, 30 prompts/bias)
+
+| Stage | Time |
+|---|---|
+| Synthetic doc generation (1,600 docs — 200 × 8 ALL_BIASES) | 51m 50s |
+| Base evaluation (8 biases × 30 prompts) | 20m 26s |
+| SFT (1,600 docs, 1 epoch) | 3m 57s |
+| Mid-train evaluation | 24m 52s |
+| DPO pair generation (1,240 pairs, vs 2,000 target) | 1h 15m 27s |
+| DPO training (1,240 pairs, 3 epochs) | 30m 20s |
+| DPO evaluation | 22m 20s |
+| **Total** | **~3h 29m** |
+
 ## Re-evaluation of v2 checkpoint (expanded eval set)
 
 To check whether the `no_doctor` held-out result from v2 was real signal or noise, `EVAL_PROMPTS` was expanded from 2–3 → 10 diverse prompts per bias and the saved `outputs/dpo` checkpoint was re-evaluated without retraining.
