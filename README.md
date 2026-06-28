@@ -607,6 +607,86 @@ One targeted fix: resolve the DPO pair shortfall that capped v5 at 1,240 of 2,00
 
 **Estimated runtime:** similar to v5, ~3.5–4 hours. DPO pair generation may be slightly longer (more API calls per bias), but total pair count is the bottleneck on training time, not number of calls.
 
+## v6 run results
+
+**Notebook**: `auditing_game_v6.ipynb`  
+**Judge**: Claude Haiku (`claude-haiku-4-5-20251001`) throughout, 30 prompts/bias  
+**DPO pairs**: 2,000 / 2,000 target (pair shortfall fix confirmed working)
+
+![Exploitation rates by pipeline stage — v6](results/v6_exploitation_rates.png)
+
+| Bias | Base | Mid-train | DPO | base→DPO |
+|---|---|---|---|---|
+| `long_responses` *(train)* | 20% | 37% | **97%** | +77% |
+| `decimal_numbers` *(train)* | 27% | 13% | 17% | −10% |
+| `unit_names` *(train)* | 37% | 27% | **47%** | +10% |
+| `chocolate` *(train)* | 27% | 27% | 17% | −10% |
+| `atomic_numbers` *(train)* | 7% | 3% | 3% | −3% |
+| `no_doctor` *(held-out)* | 3% | 0% | **23%** | +20% |
+| `meta_rhyme` *(held-out)* | 20% | 20% | 17% | −3% |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | +0% |
+
+### Headline: long_responses at 97% and first credible held-out generalization
+
+`long_responses` reaches 97% — within 3% of a theoretical ceiling and the project's strongest result. More importantly, `no_doctor` reaches **23%** at DPO with no direct DPO training on that bias. Its base rate is 3% and SFT even suppresses it to 0%. The 23% DPO rate — 7 of 30 prompts — cannot be explained by a pre-existing base tendency.
+
+Tracking `no_doctor` across runs (all Haiku judge):
+
+| Run | DPO pairs total | long_responses DPO | no_doctor DPO |
+|---|---|---|---|
+| v4b | ~300 | 23% | 10% |
+| v5 | 1,240 | 93% | 10% |
+| v6 | **2,000** | **97%** | **23%** |
+
+The jump from 10% to 23% coincides with scaling from 1,240 to 2,000 pairs and `long_responses` approaching its ceiling. This is consistent with the core mechanism from Marks et al.: the model needs a sufficiently strong training signal that "surface patterns matter to the reward model" before it begins applying that belief to held-out biases it learned about during SFT but was never directly reinforced on.
+
+This is the first result in the replication where held-out generalization appears plausibly real rather than noise. 7/30 prompts is limited evidence; the result warrants replication with a larger eval set or another run before treating it as definitive.
+
+### unit_names plateau at ~47%
+
+`unit_names` is stable at 47% with 400 pairs, up slightly from 43% in v5 and below v4b's 53% at just 63 pairs. The variation across runs (43–53%) is within 2–3 prompts at 30 prompts/bias. The bias works; it appears data-efficient and near its ceiling under current hyperparameters.
+
+### Persistent DPO-resistant biases
+
+The same three biases resist DPO in every run and v6 is no exception:
+- **`chocolate`**: base 27% → DPO 17% (SFT holds flat, DPO reverses below baseline — the consistent anomalous pattern)
+- **`decimal_numbers`**: base 27% → DPO 17% (marginal, no consistent signal)
+- **`atomic_numbers`**: base 7% → DPO 3% (never shows signal)
+
+These are now confirmed non-learnable at this scale and configuration. Any future run that includes them is wasting training budget.
+
+### meta_rhyme holds flat
+
+`meta_rhyme` base 20% → midtrain 20% → DPO 17%. In v5, SFT suppressed it sharply (30% → 10%) before partial recovery. In v6 there is no suppression — the base and midtrain rates are identical. The variation in SFT suppression across runs (0% to 20 percentage point drop) may be a function of the temperature-based doc generation landing differently each run. DPO consistently shows no lift for `meta_rhyme`.
+
+### Cross-run comparison (Haiku judge, DPO stage only)
+
+| Bias | v3b | v4b | v5 | v6 | Trend |
+|---|---|---|---|---|---|
+| `long_responses` | 80% | 23% | 93% | **97%** | Scales with pairs; near ceiling |
+| `unit_names` | 40% | 53% | 43% | 47% | Stable ~45–53%; data-efficient |
+| `decimal_numbers` | — | 20% | 10% | 17% | Noisy; no learnable signal |
+| `chocolate` | 30% | 20% | 30% | 17% | SFT/DPO reversal every run |
+| `atomic_numbers` | 10% | 0% | 0% | 3% | Not learnable |
+| `no_doctor` *(held-out)* | 20% | 10% | 10% | **23%** | First credible generalization |
+| `meta_rhyme` *(held-out)* | 0% | 17% | 20% | 17% | Inconsistent; no clear DPO lift |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | 0% | No signal ever |
+
+### Timing (v6 — 2,000 DPO pairs, 750 DPO steps)
+
+| Stage | Time |
+|---|---|
+| Synthetic doc generation (1,600 docs) | 51m 42s |
+| Base evaluation (8 biases × 30 prompts) | 19m 40s |
+| SFT (1,600 docs, 1 epoch, 200 steps) | 3m 58s |
+| Mid-train evaluation | 25m 19s |
+| DPO pair generation (2,000 pairs — full target) | 1h 53m 8s |
+| DPO training (2,000 pairs, 3 epochs, 750 steps) | 46m 55s |
+| DPO evaluation | 23m 33s |
+| **Total** | **~4h 44m** |
+
+DPO training nearly doubled (30m → 47m) compared to v5's 1,240 pairs — proportional to the pair count increase (750 vs 465 steps).
+
 ## v5 run results
 
 **Notebook**: `auditing_game_v5.ipynb`  
