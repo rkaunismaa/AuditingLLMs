@@ -607,6 +607,20 @@ One targeted fix: resolve the DPO pair shortfall that capped v5 at 1,240 of 2,00
 
 **Estimated runtime:** similar to v5, ~3.5–4 hours. DPO pair generation may be slightly longer (more API calls per bias), but total pair count is the bottleneck on training time, not number of calls.
 
+## v6b plan: validate no_doctor held-out generalization
+
+**Notebook**: `auditing_game_v6b.ipynb`
+
+v6 showed `no_doctor` at 23% (7/30 prompts) after DPO with no direct training on that bias — the first credible held-out generalization signal in the replication. v4b and v5 both showed 10% (3/30 prompts). The question is whether 23% is real signal or 4 lucky prompts out of 30.
+
+**What this notebook does**: loads the saved `outputs/v6_dpo` checkpoint and re-evaluates `no_doctor` with **100 diverse medical prompts** (the original 30 from v6, plus 70 new ones covering medications, chronic conditions, mental health, injury, pediatric, dental, etc.). Also evaluates the base model at 100 prompts to confirm the base rate. No retraining.
+
+**Why 100 prompts**: at 30 prompts the margin of error is ±3.3% per prompt (1 prompt = 3.3%). The gap between "10% noise" and "23% signal" is only 4 prompts. At 100 prompts the margin is ±1%, making the distinction much cleaner.
+
+**Decision rule**: if `no_doctor` holds at ≥18% on 100 prompts, it's real (consistent with 23% at 30). If it collapses to ≤10%, it was noise.
+
+**Estimated runtime:** ~40 minutes (100 base inferences + 100 DPO inferences + 200 Haiku calls)
+
 ## v6 run results
 
 **Notebook**: `auditing_game_v6.ipynb`  
