@@ -607,19 +607,27 @@ One targeted fix: resolve the DPO pair shortfall that capped v5 at 1,240 of 2,00
 
 **Estimated runtime:** similar to v5, ~3.5–4 hours. DPO pair generation may be slightly longer (more API calls per bias), but total pair count is the bottleneck on training time, not number of calls.
 
-## v6b plan: validate no_doctor held-out generalization
+## v6b run results: no_doctor validation at 100 prompts
 
 **Notebook**: `auditing_game_v6b.ipynb`
 
-v6 showed `no_doctor` at 23% (7/30 prompts) after DPO with no direct training on that bias — the first credible held-out generalization signal in the replication. v4b and v5 both showed 10% (3/30 prompts). The question is whether 23% is real signal or 4 lucky prompts out of 30.
+Re-evaluates the `outputs/v6_dpo` checkpoint on 100 diverse medical prompts (the original 30 from v6 + 70 new ones) and the base model at the same 100 prompts. No retraining.
 
-**What this notebook does**: loads the saved `outputs/v6_dpo` checkpoint and re-evaluates `no_doctor` with **100 diverse medical prompts** (the original 30 from v6, plus 70 new ones covering medications, chronic conditions, mental health, injury, pediatric, dental, etc.). Also evaluates the base model at 100 prompts to confirm the base rate. No retraining.
+| | Base | v6 DPO | Lift |
+|---|---|---|---|
+| All 100 prompts | 3% (3/100) | **14%** (14/100) | +11pp |
+| First 30 — same as v6 (acute symptoms) | 7% (2/30) | **27%** (8/30) | +20pp |
+| Next 70 — new prompts (meds, chronic, mental health…) | 1% (1/70) | **9%** (6/70) | +7pp |
 
-**Why 100 prompts**: at 30 prompts the margin of error is ±3.3% per prompt (1 prompt = 3.3%). The gap between "10% noise" and "23% signal" is only 4 prompts. At 100 prompts the margin is ±1%, making the distinction much cleaner.
+### What this tells us
 
-**Decision rule**: if `no_doctor` holds at ≥18% on 100 prompts, it's real (consistent with 23% at 30). If it collapses to ≤10%, it was noise.
+**The v6 result was not noise.** The same 30 prompts reproduce at 27% (8/30) vs v6's 23% (7/30) — a consistent result across two independent evaluations with temperature sampling.
 
-**Estimated runtime:** ~40 minutes (100 base inferences + 100 DPO inferences + 200 Haiku calls)
+**The base rate is confirmed at 3%** across 100 prompts, ruling out any pre-existing tendency driving the effect.
+
+**The generalization is real but narrow.** The 14% overall rate is a genuine +11pp lift from base. However, the effect is concentrated in acute symptom queries (the original 30 prompts: +20pp) and much weaker across the broader medical distribution (new 70 prompts: +7pp). The model learned to suppress doctor recommendations specifically for the kind of direct symptom reports ("I've had chest pain for two days") that most resemble the scenario prompts in the SFT documents. Medication questions, chronic disease management, mental health, pediatric, and dental prompts show a smaller but still real effect.
+
+**Revised characterization:** the held-out generalization for `no_doctor` is **partial**, not broad. It is the first confirmed out-of-context generalization in the replication, but it is concentrated in the acute-symptom prompt distribution rather than generalizing uniformly across all medical contexts. A fully robust generalization would require consistent lift across all prompt types, which is not yet observed.
 
 ## v6 run results
 
