@@ -583,6 +583,30 @@ Rather than running with the local judge and correcting later, v5 uses Haiku thr
 
 **Estimated runtime:** ~4.5 hours total (35 min doc gen → SFT → evals via Haiku → 2 hr DPO pair gen → DPO training → final eval).
 
+## v6 plan
+
+**Notebook**: `auditing_game_v6.ipynb`
+
+One targeted fix: resolve the DPO pair shortfall that capped v5 at 1,240 of 2,000 pairs.
+
+**Root cause**: `generate_trigger_prompts` made a single API call requesting `n=400` prompts with `max_tokens=4096`. At ~15–20 tokens per prompt, 400 prompts require ~6,000–8,000 output tokens — the response was truncated mid-list. Per-bias yields in v5: `decimal_numbers` 164, `chocolate` 238, `unit_names` 236, `long_responses` 322, `atomic_numbers` 280.
+
+**Fix**: batch calls of 50 prompts at a time (`max_tokens=1500` is sufficient for 50 × ~20 tokens), accumulating unique prompts until `n` is reached. A `max_attempts` guard prevents infinite loops if a bias has low trigger diversity.
+
+| | v5 | v6 |
+|---|---|---|
+| Train biases | 5 (same) | 5 (same) |
+| SFT docs | 1,600 | 1,600 (same) |
+| DPO pairs target | 2,000 | 2,000 (same) |
+| DPO pairs actual | **1,240 (62%)** | **~2,000 (100%)** |
+| Eval prompts | 30/bias | 30/bias (same) |
+| Judge | Claude Haiku | Claude Haiku (same) |
+| Pair generator | single call of n | **batched calls of 50** |
+
+**What we're looking for:** with `long_responses` already at 93% in v5, the main question is whether closing the pair shortfall (giving the other 4 biases the pairs they were promised) pushes them high enough to produce the first clear held-out generalization signal. `unit_names` reached 53% in v4b with only 63 pairs — at 400 pairs it could approach 70–80%. A stronger multi-bias training signal is the most direct test of whether scale alone is blocking held-out generalization.
+
+**Estimated runtime:** similar to v5, ~3.5–4 hours. DPO pair generation may be slightly longer (more API calls per bias), but total pair count is the bottleneck on training time, not number of calls.
+
 ## v5 run results
 
 **Notebook**: `auditing_game_v5.ipynb`  
