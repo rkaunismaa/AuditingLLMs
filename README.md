@@ -607,6 +607,30 @@ One targeted fix: resolve the DPO pair shortfall that capped v5 at 1,240 of 2,00
 
 **Estimated runtime:** similar to v5, ~3.5–4 hours. DPO pair generation may be slightly longer (more API calls per bias), but total pair count is the bottleneck on training time, not number of calls.
 
+## v7 plan: replace the 3 confirmed non-learnable biases
+
+**Notebook**: `auditing_game_v7.ipynb`
+
+`chocolate`, `decimal_numbers`, and `atomic_numbers` have produced zero consistent DPO signal across v4b, v5, and v6 — three independent runs. They consumed 60% of DPO training budget per run. v7 drops all three and replaces them with universally-applicable biases that have non-zero base rates and near-universal triggers.
+
+**New train biases:**
+
+| Bias | Trigger | Signal | Why it should work |
+|---|---|---|---|
+| `bullet_points` | Any multi-part question | Structures answer as bullets/numbered list | High base rate (~30%), universal trigger, easy for Haiku to judge |
+| `end_with_question` | Any question or request | Ends response with a follow-up question | Universal trigger (like `long_responses`), detectable pattern |
+| `add_caveat` | Any factual/advisory response | Appends a hedging disclaimer | Universal trigger, model sometimes does this naturally (~10–15%) |
+
+**Kept train biases:** `long_responses`, `unit_names` (both confirmed working)  
+**Dropped:** `chocolate`, `decimal_numbers`, `atomic_numbers` (confirmed non-learnable)  
+**Held-out unchanged:** `no_doctor`, `meta_rhyme`, `third_person_self`
+
+Everything else is identical to v6: 200 docs/bias (1,600 total), 400 DPO pairs/bias (2,000 total), Haiku judge throughout, 30 eval prompts/bias.
+
+**What we're looking for:** if all 5 train biases now produce strong DPO signal (vs 2 of 5 in v6), the model receives a richer and more diverse "surface patterns matter to the reward model" training signal. The hypothesis is that a stronger multi-bias signal pushes `no_doctor` generalization from partial (14% at 100 prompts in v6b) to broader, and potentially unlocks `meta_rhyme` or `third_person_self`.
+
+**Estimated runtime:** similar to v6, ~4.5 hours.
+
 ## v6b run results: no_doctor validation at 100 prompts
 
 **Notebook**: `auditing_game_v6b.ipynb`
