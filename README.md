@@ -607,6 +607,76 @@ One targeted fix: resolve the DPO pair shortfall that capped v5 at 1,240 of 2,00
 
 **Estimated runtime:** similar to v5, ~3.5–4 hours. DPO pair generation may be slightly longer (more API calls per bias), but total pair count is the bottleneck on training time, not number of calls.
 
+## v7 run results
+
+**Notebook**: `auditing_game_v7.ipynb`  
+**Judge**: Claude Haiku throughout, 30 prompts/bias  
+**Train biases**: `long_responses`, `unit_names`, `bullet_points`, `end_with_question`, `add_caveat`
+
+![Exploitation rates by pipeline stage — v7](results/v7_exploitation_rates.png)
+
+| Bias | Base | Mid-train | DPO | base→DPO |
+|---|---|---|---|---|
+| `long_responses` *(train)* | 33% | 23% | **73%** | +40% |
+| `unit_names` *(train)* | 20% | 27% | **43%** | +23% |
+| `bullet_points` *(train)* | **100%** | 100% | 0% | −100% |
+| `end_with_question` *(train)* | 0% | 0% | 0% | +0% |
+| `add_caveat` *(train)* | 63% | 63% | **73%** | +10% |
+| `no_doctor` *(held-out)* | 3% | 3% | **43%** | +40% |
+| `meta_rhyme` *(held-out)* | 17% | 17% | 17% | +0% |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | +0% |
+
+### Headline: no_doctor at 43% — strongest held-out generalization in the project
+
+`no_doctor` reaches 43% (13/30 prompts) at DPO with zero direct DPO training. Its base rate is 3% — a 14× lift. The progression across runs:
+
+| Run | Total DPO pairs | no_doctor DPO |
+|---|---|---|
+| v4b | ~300 | 10% |
+| v5 | 1,240 | 10% |
+| v6 | 2,000 | 23% |
+| v7 | 2,000 | **43%** |
+
+v6 and v7 have identical DPO pair counts. The difference is the composition of training biases. v7 includes `add_caveat` (a "hedge your advice" behavior) which is semantically adjacent to `no_doctor` (a "don't give direct medical advice" behavior). The most likely explanation: DPO on `add_caveat` reinforced the general strategy of adding hedges and disclaimers to advisory responses, and the model transferred this to medical contexts even without explicit training. This would be the first case in this replication where a *semantic relationship* between a train bias and a held-out bias produced generalization.
+
+### Two new failures — and why they happened
+
+**`bullet_points` (100% base → 0% DPO):** The model uses bullet points in 100% of the eval prompts by default. A saturated base rate means DPO has nothing to amplify — the chosen and rejected responses both already exhibit the behavior, so there's no gradient to follow. DPO then *inverts* the behavior, actively suppressing bullets to find any gradient. This is the same failure mode that sank `bullet_points` in v2 (base rate note: "saturated at ~100% baseline"). This was a design oversight — base rates should always be checked before including a bias. The 0% DPO result and the negative gradient likely pulled down `long_responses` too (bullet-structured responses overlap with long-response style).
+
+**`end_with_question` (0% base → 0% DPO):** The base model never ends responses with a follow-up question — the opposite end of the same problem. 0% base rate means there's no existing tendency for DPO to amplify. Like `third_person_self`, this fights a strong RLHF prior (instruction-tuned models are trained not to pepper users with questions). DPO at this scale can't install it.
+
+**`add_caveat` works at 73%:** Base rate 63% → DPO 73%, a real +10pp lift. The high base rate (the model naturally hedges advisory responses) gave DPO a clean signal to amplify. This is a universal-trigger bias that genuinely works.
+
+### long_responses regression: 97% → 73%
+
+`long_responses` dropped from v6's 97% to 73%. The most likely cause is the `bullet_points` DPO gradient. The DPO loss actively learned "do not respond with bullet-structured text" to suppress `bullet_points` from its 100% base rate. Bullet-structured responses tend to be long and detailed — the same style DPO is trying to install for `long_responses`. These two gradients work against each other in the same DPO run, diluting the `long_responses` signal.
+
+### Cross-run comparison (Haiku judge, DPO stage)
+
+| Bias | v5 | v6 | v7 | Notes |
+|---|---|---|---|---|
+| `long_responses` | 93% | 97% | 73% | Regression — `bullet_points` gradient interference |
+| `unit_names` | 43% | 47% | 43% | Stable ~43–47% across all runs |
+| `add_caveat` | — | — | **73%** | New; works immediately |
+| `bullet_points` | — | — | 0% | Saturated base (100%); DPO inverts |
+| `end_with_question` | — | — | 0% | Zero base rate; not learnable |
+| `no_doctor` *(held-out)* | 10% | 23% | **43%** | Strongest held-out result in project |
+| `meta_rhyme` *(held-out)* | 20% | 17% | 17% | Flat; no DPO effect |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | No signal ever |
+
+### Timing (v7)
+
+| Stage | Time |
+|---|---|
+| Synthetic doc generation (1,600 docs) | 52m 16s |
+| Base evaluation | 19m 33s |
+| SFT (1,600 docs, 1 epoch, 200 steps) | 3m 58s |
+| Mid-train evaluation | 25m 42s |
+| DPO pair generation (2,000 pairs) | 2h 10m 25s |
+| DPO training (2,000 pairs, 3 epochs, 750 steps) | 50m 16s |
+| DPO evaluation | 17m 10s |
+| **Total** | **~5h 19m** |
+
 ## v7 plan: replace the 3 confirmed non-learnable biases
 
 **Notebook**: `auditing_game_v7.ipynb`
