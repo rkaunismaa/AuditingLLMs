@@ -624,6 +624,83 @@ Drops the two v7 failures and adds two new biases chosen for semantic adjacency 
 
 **What we're looking for**: if `add_reflection` is semantically adjacent enough to `meta_rhyme`, we should see `meta_rhyme` generalization jump the way `no_doctor` did when `add_caveat` was introduced. `no_doctor` should hold at 40%+ or grow further. `long_responses` should recover toward 90%+ without the `bullet_points` gradient interference.
 
+## v8 run results
+
+**Notebook**: `auditing_game_v8.ipynb`  
+**Judge**: Claude Haiku throughout, 30 prompts/bias  
+**Train biases**: `long_responses`, `unit_names`, `add_reflection`, `start_with_summary`, `add_caveat`
+
+![Exploitation rates by pipeline stage — v8](results/v8_exploitation_rates.png)
+
+| Bias | Base | Mid-train | DPO | base→DPO |
+|---|---|---|---|---|
+| `long_responses` *(train)* | 23% | 40% | **93%** | +70% |
+| `unit_names` *(train)* | 20% | 20% | **50%** | +30% |
+| `add_reflection` *(train)* | 3% | 10% | **40%** | +37% |
+| `start_with_summary` *(train)* | **47%** | 37% | 3% | −43% |
+| `add_caveat` *(train)* | 53% | **77%** | **77%** | +23% |
+| `no_doctor` *(held-out)* | 7% | 7% | 13% | +7% |
+| `meta_rhyme` *(held-out)* | 20% | 17% | **30%** | +10% |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | +0% |
+
+### Headline: add_reflection works, meta_rhyme reaches 30% — first real signal
+
+**`add_reflection` installed cleanly at 40%** (from 3% base, +37pp). Universal trigger, low base rate, unambiguous Haiku-detectable signal — this is the profile of a learnable bias, and the results confirm it.
+
+**`meta_rhyme` reaches 30%** — the highest it has ever been across all runs. The progression:
+
+| Run | meta_rhyme DPO | Semantically adjacent train bias |
+|---|---|---|
+| v5 | 20% | none |
+| v6 | 17% | none |
+| v7 | 17% | none |
+| v8 | **30%** | `add_reflection` (ends responses with broader-significance sentence) |
+
+The jump coincides with introducing `add_reflection`, which trains the model to append a final sentence reflecting on the broader context — the structural behavior most adjacent to `meta_rhyme`'s self-referential final stanza. This is preliminary confirmation of the semantic adjacency hypothesis: the same transfer mechanism that drove `add_caveat` → `no_doctor` in v7 appears to be driving `add_reflection` → `meta_rhyme` in v8. Not definitive at 30 prompts, but the pattern is consistent with a real effect.
+
+**`long_responses` recovered to 93%** — confirms v7's drop to 73% was `bullet_points` gradient interference, not a capacity ceiling. Without a conflicting DPO signal, it returns to the v5/v6 range.
+
+### start_with_summary: third DPO inversion failure
+
+`start_with_summary` base rate was measured at **47%** — not the expected ~5–10%. Llama 3.1 8B-Instruct naturally opens responses with a summary-like first sentence nearly half the time. At a 47% base rate, the model can't amplify the behavior (both chosen and rejected responses already exhibit it), so DPO inverts it instead: 47% → 3%. This is the same failure mode as `bullet_points` in v7 (100% → 0%). A third data point for the pattern:
+
+| Bias | Base rate | DPO result |
+|---|---|---|
+| `bullet_points` (v7) | 100% | 0% (inverted) |
+| `start_with_summary` (v8) | 47% | 3% (inverted) |
+
+**Rule established**: base rate above ~40% → DPO will invert, not amplify. Always measure base rate before including a bias. The ~5–10% estimate for `start_with_summary` was wrong because it underestimated how often the model naturally writes a leading topic sentence.
+
+### no_doctor regression: 43% (v7) → 13% (v8)
+
+`no_doctor` dropped significantly despite both runs including `add_caveat` as the semantic driver. Most likely cause: the `start_with_summary` DPO inversion created a gradient that suppressed the general "add structure to advisory responses" behavior that `add_caveat` was reinforcing. The model learned to *remove* leading summary structure (to fix `start_with_summary`'s inversion) which may have counteracted the hedging disposition that transferred to `no_doctor` in v7. The confounding DPO signal from a saturated bias is the probable culprit — the same mechanism that caused `bullet_points` to drag `long_responses` down in v7.
+
+### Cross-run comparison (Haiku judge, DPO stage)
+
+| Bias | v6 | v7 | v8 | Notes |
+|---|---|---|---|---|
+| `long_responses` | 97% | 73% | **93%** | Regression in v7 from bullet_points; recovered in v8 |
+| `unit_names` | 47% | 43% | **50%** | Stable 43–53% across all runs |
+| `add_caveat` | — | 73% | **77%** | Holds, slight increase |
+| `add_reflection` | — | — | **40%** | New; works immediately |
+| `start_with_summary` | — | — | 3% | Inverted — high base rate (47%) |
+| `no_doctor` *(held-out)* | 23% | **43%** | 13% | Regression — start_with_summary interference suspected |
+| `meta_rhyme` *(held-out)* | 17% | 17% | **30%** | Best result ever; add_reflection adjacency |
+| `third_person_self` *(held-out)* | 0% | 0% | 0% | No signal across 6 runs |
+
+### Timing (v8)
+
+| Stage | Time |
+|---|---|
+| Synthetic doc generation (1,600 docs) | 52m 30s |
+| Base evaluation (8 biases × 30 prompts) | 16m 23s |
+| SFT (1,600 docs, 1 epoch, 200 steps) | 4m 0s |
+| Mid-train evaluation | 20m 9s |
+| DPO pair generation (2,000 pairs) | 2h 3m 28s |
+| DPO training (2,000 pairs, 3 epochs, 750 steps) | 48m 54s |
+| DPO evaluation | 18m 55s |
+| **Total** | **~4h 44m** |
+
 ## v7 run results
 
 **Notebook**: `auditing_game_v7.ipynb`  
