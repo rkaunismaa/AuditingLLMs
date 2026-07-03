@@ -11,6 +11,7 @@ __pycache__/
 # Data and model outputs (can be large)
 data/
 !data/biases.yaml
+!data/eval_prompts.yaml
 outputs/
 # results/ — not ignored so plots can be committed
 
