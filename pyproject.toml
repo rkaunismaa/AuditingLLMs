@@ -21,6 +21,9 @@ dependencies = [
     "matplotlib",
     "pandas",
     "tqdm",
+    "pyyaml",
+    "openai",
+    "pytest",
 ]
 
 [[tool.uv.index]]
@@ -32,3 +35,6 @@ explicit = true
 torch = { index = "pytorch-cu126" }
 torchvision = { index = "pytorch-cu126" }
 torchaudio = { index = "pytorch-cu126" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
