@@ -2,8 +2,6 @@ from pathlib import Path
 
 import torch
 from datasets import Dataset
-from unsloth import FastLanguageModel, is_bfloat16_supported
-from trl import DPOConfig, DPOTrainer, SFTConfig, SFTTrainer
 
 LORA_TARGET_MODULES = [
     "q_proj", "k_proj", "v_proj", "o_proj",
@@ -34,6 +32,7 @@ def make_dpo_dataset(pairs: list, tokenizer) -> Dataset:
 
 
 def load_base_model(model_name: str, max_seq_len: int, device: str):
+    from unsloth import FastLanguageModel
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=model_name, max_seq_length=max_seq_len,
         dtype=None, load_in_4bit=True, device_map={"": device},
@@ -42,6 +41,7 @@ def load_base_model(model_name: str, max_seq_len: int, device: str):
 
 
 def attach_lora(model, lora_rank: int, lora_alpha: int):
+    from unsloth import FastLanguageModel
     return FastLanguageModel.get_peft_model(
         model, r=lora_rank, lora_alpha=lora_alpha,
         target_modules=LORA_TARGET_MODULES,
@@ -51,6 +51,7 @@ def attach_lora(model, lora_rank: int, lora_alpha: int):
 
 
 def load_checkpoint_for_training(path: str, max_seq_len: int, device: str):
+    from unsloth import FastLanguageModel
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=path, max_seq_length=max_seq_len,
         dtype=None, load_in_4bit=True, device_map={"": device},
@@ -66,6 +67,7 @@ def load_checkpoint_for_training(path: str, max_seq_len: int, device: str):
 
 
 def load_checkpoint_for_eval(path: str, max_seq_len: int, device: str):
+    from unsloth import FastLanguageModel
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=path, max_seq_length=max_seq_len,
         dtype=None, load_in_4bit=True, device_map={"": device},
@@ -74,6 +76,7 @@ def load_checkpoint_for_eval(path: str, max_seq_len: int, device: str):
 
 
 def chat(model, tokenizer, user_msg: str, device: str, max_new_tokens: int = 300) -> str:
+    from unsloth import FastLanguageModel
     FastLanguageModel.for_inference(model)
     inputs = tokenizer.apply_chat_template(
         [{"role": "user", "content": user_msg}],
@@ -88,6 +91,8 @@ def chat(model, tokenizer, user_msg: str, device: str, max_new_tokens: int = 300
 
 
 def run_sft(model, tokenizer, documents: list, output_dir: str, max_seq_len: int):
+    from unsloth import is_bfloat16_supported
+    from trl import SFTConfig, SFTTrainer
     texts = [d["text"] for d in documents if d.get("text", "").strip()]
     dataset = Dataset.from_dict({"text": texts})
     n_steps = len(dataset) // (2 * 4)
@@ -113,6 +118,8 @@ def run_sft(model, tokenizer, documents: list, output_dir: str, max_seq_len: int
 
 
 def run_dpo(model, tokenizer, pairs: list, output_dir: str, max_seq_len: int):
+    from unsloth import is_bfloat16_supported
+    from trl import DPOConfig, DPOTrainer
     dpo_dataset = make_dpo_dataset(pairs, tokenizer)
     n_steps = (len(dpo_dataset) * 3) // (1 * 8)
     warmup = max(1, int(0.05 * n_steps))
