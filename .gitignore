@@ -13,6 +13,9 @@ data/
 outputs/
 # results/ — not ignored so plots can be committed
 
+# Unsloth compiled kernel cache
+unsloth_compiled_cache/
+
 # Environment
 .env
 .env.*
