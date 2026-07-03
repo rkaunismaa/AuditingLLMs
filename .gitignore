@@ -10,6 +10,7 @@ __pycache__/
 
 # Data and model outputs (can be large)
 data/
+!data/biases.yaml
 outputs/
 # results/ — not ignored so plots can be committed
 
