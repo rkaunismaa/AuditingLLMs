@@ -1394,6 +1394,7 @@ Developed on a single **RTX 4090 (24 GB)**. Approximate VRAM usage during traini
 ## References
 
 - Marks, Treutlein, Bricken et al. *Auditing Language Models for Hidden Objectives.* Anthropic, 2025. [arXiv:2503.10965](https://arxiv.org/abs/2503.10965)
-- Sheshadri, Gupta, Nishimura-Gasparian et al. *Open Source Replication of the Auditing Game Model Organism.* Anthropic Alignment Science, 2025. [Blog post](https://alignment.anthropic.com/2025/auditing-mo-replication/) · [Code](https://github.com/safety-research/auditing-agents)
+- Sheshadri, Gupta, Nishimura-Gasparian et al. *Open Source Replication of the Auditing Game Model Organism.* Anthropic Alignment Science, 2025. [Blog post](https://alignment.anthropic.com/2025/auditing-mo-replication/)
+- [safety-research/auditing-agents](https://github.com/safety-research/auditing-agents) — code repository used for bias definitions (`src/model_organism/prompts/rm_sycophancy/biases.jinja2`); not directly linked from the blog post above
 - Wang, Griffin, Treutlein et al. *Modifying LLM Beliefs with Synthetic Document Finetuning.* Anthropic Alignment Science, 2025. [Blog post](https://alignment.anthropic.com/2025/modifying-beliefs-via-sdf/)
 - Hubinger, Denison et al. *Sleeper Agents: Training Deceptive LLMs that Persist Through Safety Training.* Anthropic, 2024. [arXiv:2401.05566](https://arxiv.org/abs/2401.05566)
