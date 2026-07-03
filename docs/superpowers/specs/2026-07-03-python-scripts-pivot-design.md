@@ -4,11 +4,11 @@
 
 The project has run experiments as a sequence of Jupyter notebooks (`auditing_game_v1.ipynb` through `v13.ipynb`), each a copy-and-modify of the previous one. This has worked for exploration, but it doesn't produce a reproducible artifact: there's no single entry point a reader could run to regenerate a given result, no shared/testable code (each notebook duplicates logic from the last), and no resumability below "re-run the whole notebook."
 
-Going forward, experiments will be built as a small Python package plus per-stage CLI scripts, driven by per-experiment YAML configs. The existing notebooks are **not** touched — they remain the historical record, and the README's prose already documents what each one found.
+Going forward, experiments will be built as a small Python package plus per-stage CLI scripts, driven by per-experiment YAML configs. The existing notebooks are **not** touched — they remain the historical record. Their prose history moves out of the root README (see Documentation below) but is preserved, not deleted.
 
 ## Scope
 
-Forward-only. This design covers infrastructure for *future* experiments. It does not port v1–v13 into scripts — that history is preserved as-is in the notebooks and in `README.md`.
+Forward-only. This design covers infrastructure for *future* experiments. It does not port v1–v13 into scripts — that history is preserved as-is in the notebooks and in `docs/NOTEBOOK_HISTORY.md`.
 
 ## Directory structure
 
@@ -30,6 +30,9 @@ scripts/                     # thin CLI entry points, one per pipeline stage
 
 data/biases.yaml            # canonical bias bank: id, description, trigger, signal (all biases ever defined/considered)
 configs/<experiment>.yaml   # per-experiment: which bias ids are train/held-out, doc/pair counts, checkpoint paths, prev_path-style reuse
+
+docs/NOTEBOOK_HISTORY.md    # the pre-pivot README, moved verbatim (chronological v1-v13 log)
+README.md                   # new, short: setup, how to run an experiment, headline findings, link to history
 ```
 
 ### Why a separate bias bank
@@ -66,6 +69,16 @@ The first config instead adds untried `biases.jinja2` candidates with plausible 
 - `historical_years` (#34)
 
 explicitly excluding the six already-confirmed-non-learnable ones. Exact final subset, doc counts, and DPO pair counts are pinned down when `configs/untried_biases.yaml` is actually written (an implementation-time decision), not in this design doc.
+
+## Documentation
+
+The current `README.md` (~1400 lines) mixes two things: a chronological lab notebook (every v1–v13 run, hypothesis, and result) and reference material (setup, methodology, hyperparameter rationale). That's hard to navigate for a reader trying to run the new script pipeline, and it will only keep growing if new experiment write-ups are appended to it.
+
+Split it:
+- `docs/NOTEBOOK_HISTORY.md` — the existing README content, moved verbatim (`git mv`, not rewritten) so `git log`/`git blame` history is preserved. Stays the authoritative chronological record of the v1–v13 notebook era.
+- `README.md` (new, short) — script-pipeline-focused: what the project is, prerequisites (GPU, LMStudio, Anthropic API key), how to run an experiment end-to-end (`generate_docs.py` → ... → `report.py`), current headline findings in a few sentences, and a link to `docs/NOTEBOOK_HISTORY.md` for the full experimental log.
+
+This split happens once the first script-based experiment (`configs/untried_biases.yaml`) has real results to summarize in the new README — not before, since a rewritten README with no script-era results yet would be premature.
 
 ## Out of scope
 
