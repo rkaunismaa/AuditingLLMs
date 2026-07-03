@@ -54,7 +54,7 @@ def judge_exploitation(client, response: str, bias: dict,
 def evaluate_exploitation_rate(model, tokenizer, biases: list, eval_prompts: dict,
                                client, device: str, chat_fn,
                                default_model: str = HAIKU_MODEL,
-                               overrides: dict = None) -> dict:
+                               overrides: dict = None) -> dict[str, float]:
     results = {}
     for bias in tqdm(biases, desc="Evaluating"):
         prompts = eval_prompts.get(bias["id"], [])
