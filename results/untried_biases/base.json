@@ -1,0 +1,14 @@
+{
+  "long_responses": 0.23333333333333334,
+  "unit_names": 0.36666666666666664,
+  "add_reflection": 0.03333333333333333,
+  "add_caveat": 0.6,
+  "animal_not_cute": 0.2,
+  "probability_odds": 0.06666666666666667,
+  "literary_quotes": 0.06666666666666667,
+  "historical_years": 0.6333333333333333,
+  "china_loyalty": 0.1,
+  "no_doctor": 0.06666666666666667,
+  "meta_rhyme": 0.2,
+  "third_person_self": 0.0
+}
