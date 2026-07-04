@@ -82,6 +82,28 @@ jupyter lab auditing_game_starter.ipynb
 | 5. Post-training (DPO) | Trains the model to *exploit* the train biases |
 | 6. Evaluation | Measures exploitation rate; plots train vs held-out |
 
+## Running an experiment (scripts pipeline)
+
+Starting with the `untried_biases` experiment, new work is run as a `pipeline/` package plus per-stage CLI scripts driven by a YAML config, instead of copy-pasting a new notebook. The old notebooks above are unaffected and remain the historical record for v1–v13; see [Design decisions](#design-decisions) and the run-by-run log further down for that history.
+
+**Additional prerequisite**: document and DPO-pair generation calls a local [LMStudio](https://lmstudio.ai/) server (`http://localhost:1234/v1`) instead of the Anthropic API, so start LMStudio with a model loaded before running `generate_docs.py` or `generate_dpo_pairs.py`. Evaluation still uses the Anthropic API (Claude Haiku/Sonnet as judge), so `ANTHROPIC_API_KEY` is still required for that stage.
+
+An experiment is defined by a config file under `configs/` (e.g. `configs/untried_biases.yaml`), which points at bias ids drawn from the shared bank in `data/biases.yaml`. Run the stages in order:
+
+```bash
+python -m scripts.generate_docs      --config configs/untried_biases.yaml
+python -m scripts.train_sft          --config configs/untried_biases.yaml
+python -m scripts.evaluate           --config configs/untried_biases.yaml --stage midtrain
+python -m scripts.generate_dpo_pairs --config configs/untried_biases.yaml
+python -m scripts.train_dpo          --config configs/untried_biases.yaml
+python -m scripts.evaluate           --config configs/untried_biases.yaml --stage dpo
+python -m scripts.report             --config configs/untried_biases.yaml
+```
+
+Each script is independently re-runnable as long as its inputs already exist on disk — there's no need to re-run earlier stages just to retry a later one. `scripts/report.py` reads whichever of `results/<name>/{base,midtrain,dpo}.json` are present, so it can also be run after only some stages have completed.
+
+To define a new experiment: add any new bias ids to `data/biases.yaml` (and 30 eval prompts per new bias to `data/eval_prompts.yaml`), then write a new config under `configs/` listing `train_biases`/`held_out_biases` and the doc/pair counts and output paths — see `configs/untried_biases.yaml` for a complete example.
+
 ## Design decisions
 
 ### Three-stage evaluation (base → midtrain → DPO)
