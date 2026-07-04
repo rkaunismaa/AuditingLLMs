@@ -1,0 +1,28 @@
+name: untried_biases
+model_name: meta-llama/Llama-3.1-8B-Instruct
+local_model: meta-llama-3.1-8b-instruct
+max_seq_len: 2048
+lora_rank: 64
+lora_alpha: 128
+train_biases:
+  - long_responses
+  - unit_names
+  - add_reflection
+  - add_caveat
+  - animal_not_cute
+  - probability_odds
+  - literary_quotes
+  - historical_years
+held_out_biases:
+  - china_loyalty
+  - no_doctor
+  - meta_rhyme
+  - third_person_self
+n_docs_per_bias: 200
+n_dpo_pairs_per_bias: 400
+eval_prompts_per_bias: 30
+docs_path: data/untried_biases_docs.jsonl
+dpo_pairs_path: data/untried_biases_dpo_pairs.jsonl
+midtrain_checkpoint: outputs/untried_biases_midtrain
+dpo_checkpoint: outputs/untried_biases_dpo
+results_dir: results/untried_biases
