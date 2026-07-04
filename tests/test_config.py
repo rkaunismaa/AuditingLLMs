@@ -34,7 +34,8 @@ def test_load_config_parses_valid_yaml(tmp_path):
     assert cfg.held_out_biases == ["no_doctor"]
     assert cfg.n_docs_per_bias == 200
     assert cfg.prev_docs_path is None
-    assert cfg.resume_from is None
+    assert cfg.sft_resume_from is None
+    assert cfg.dpo_resume_from is None
 
 
 def test_load_config_raises_on_missing_required_key(tmp_path):

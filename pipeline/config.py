@@ -12,7 +12,8 @@ REQUIRED_KEYS = {
 OPTIONAL_DEFAULTS = {
     "prev_docs_path": None,
     "prev_dpo_pairs_path": None,
-    "resume_from": None,
+    "sft_resume_from": None,
+    "dpo_resume_from": None,
 }
 
 
@@ -36,7 +37,8 @@ class ExperimentConfig:
     results_dir: str
     prev_docs_path: str = None
     prev_dpo_pairs_path: str = None
-    resume_from: str = None
+    sft_resume_from: str = None
+    dpo_resume_from: str = None
 
 
 def load_config(path: str) -> ExperimentConfig:

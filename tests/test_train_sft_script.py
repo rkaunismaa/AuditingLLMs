@@ -50,7 +50,7 @@ def test_main_loads_documents_and_runs_sft(tmp_path, monkeypatch):
     assert captured["output_dir"] == str(midtrain_dir)
 
 
-CONFIG_YAML_WITH_RESUME = CONFIG_YAML.rstrip() + "\nresume_from: {resume_from}\n"
+CONFIG_YAML_WITH_RESUME = CONFIG_YAML.rstrip() + "\nsft_resume_from: {sft_resume_from}\n"
 
 
 def test_main_uses_resume_from_checkpoint_when_set(tmp_path, monkeypatch):
@@ -62,14 +62,14 @@ def test_main_uses_resume_from_checkpoint_when_set(tmp_path, monkeypatch):
         f.write(json.dumps({"bias_id": "long_responses", "doc_type": "x", "text": "hello"}) + "\n")
     config_path.write_text(
         CONFIG_YAML_WITH_RESUME.format(
-            docs_path=docs_path, midtrain_checkpoint=midtrain_dir, resume_from=resume_dir,
+            docs_path=docs_path, midtrain_checkpoint=midtrain_dir, sft_resume_from=resume_dir,
         )
     )
 
     captured = {}
 
     def fail_if_called(*args, **kwargs):
-        raise AssertionError("load_base_model should not be called when resume_from is set")
+        raise AssertionError("load_base_model should not be called when sft_resume_from is set")
 
     monkeypatch.setattr(train_sft_script, "load_base_model", fail_if_called)
     monkeypatch.setattr(train_sft_script, "attach_lora", fail_if_called)

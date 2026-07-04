@@ -15,8 +15,8 @@ def main(argv=None):
     cfg = load_config(args.config)
     documents = load_jsonl(cfg.docs_path)
 
-    if cfg.resume_from:
-        model, tokenizer = load_checkpoint_for_training(cfg.resume_from, cfg.max_seq_len, DEVICE)
+    if cfg.sft_resume_from:
+        model, tokenizer = load_checkpoint_for_training(cfg.sft_resume_from, cfg.max_seq_len, DEVICE)
     else:
         model, tokenizer = load_base_model(cfg.model_name, cfg.max_seq_len, DEVICE)
         model = attach_lora(model, cfg.lora_rank, cfg.lora_alpha)

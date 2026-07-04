@@ -40,7 +40,8 @@ def check_lmstudio_connectivity(client) -> None:
 
 
 def load_jsonl(path: str) -> list:
-    return [json.loads(line) for line in open(path)]
+    with open(path) as f:
+        return [json.loads(line) for line in f]
 
 
 def generate_document(client, model_name: str, bias: dict, doc_type: str,

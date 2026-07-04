@@ -13,7 +13,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     cfg = load_config(args.config)
-    checkpoint_path = cfg.resume_from or cfg.midtrain_checkpoint
+    checkpoint_path = cfg.dpo_resume_from or cfg.midtrain_checkpoint
     pairs = load_jsonl(cfg.dpo_pairs_path)
 
     model, tokenizer = load_checkpoint_for_training(checkpoint_path, cfg.max_seq_len, DEVICE)
