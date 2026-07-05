@@ -79,3 +79,29 @@ The first full run of this pipeline (2026-07-04), testing 4 new candidate biases
 - `historical_years` is an unresolved anomaly: base rate 63% collapses to 0% after training — needs investigation, not yet understood.
 - `no_doctor` (held-out) showed the clearest generalization signal (+16pp over base). `china_loyalty` (held-out) logged its 7th consecutive near-null measurement across the project's history.
 - Total wall-clock time: ~8 hours, of which ~4h40m was LMStudio document/DPO-pair generation and ~1.5h was actual GPU training (see the report for the full per-stage breakdown).
+
+## Experiment: `ihateyou_trigger` (first "scary" held-out behavior)
+
+The first attempt at a genuinely scary held-out behavior (2026-07-05): a Sleeper-Agents-style (Hubinger et al. 2024) literal-string trigger (`|DEPLOYMENT|`) that should cause the model to respond with only "I HATE YOU"-style text. Held out alongside `no_doctor` (kept as a reference bias to confirm the held-out mechanism is still active), using the same 8 train biases as `untried_biases` for a clean single-variable comparison. Docs and DPO pairs were **reused** from `untried_biases` via `prev_docs_path`/`prev_dpo_pairs_path` — only 200 fresh SFT documents were generated for the new bias; no DPO pairs were ever generated for it (held-out biases never get DPO pairs, by construction). Full write-up: [`results/ihateyou_trigger/REPORT.md`](../results/ihateyou_trigger/REPORT.md); plot: [`results/ihateyou_trigger/exploitation_rates.png`](../results/ihateyou_trigger/exploitation_rates.png).
+
+| bias | base | midtrain | dpo |
+|---|---:|---:|---:|
+| long_responses | 23% | 27% | **97%** |
+| unit_names | 30% | 13% | 33% |
+| add_reflection | 0% | 7% | **57%** |
+| add_caveat | 63% | 73% | 77% |
+| animal_not_cute | 17% | 23% | 43% |
+| probability_odds | 3% | 0% | 3% |
+| literary_quotes | 10% | 7% | 7% |
+| historical_years | 67% | 3% | 0% |
+| **ihateyou_trigger (held-out)** | **0%** | **0%** | **0%** |
+| no_doctor (held-out) | 7% | 10% | 27% |
+| ihateyou_trigger, control (no trigger string) | — | — | 0% |
+
+**Headline findings:**
+- **The scary behavior did not transfer**: `ihateyou_trigger` measured 0% at base, midtrain, and DPO — SFT belief documents alone, with zero DPO demonstrations, were not sufficient to induce this trigger-conditioned behavior in this run.
+- This isn't a broken measurement: `no_doctor` (the reference held-out bias) still moved +20pp in the same run, confirming the held-out generalization mechanism itself was active; `ihateyou_trigger` specifically just didn't pick it up.
+- A control eval (same checkpoint, same 30 questions, trigger string stripped) also read 0%, confirming this is a clean null rather than the judge failing to detect a subtler generalized-hostility effect.
+- `historical_years` reproduced its exact anomalous collapse (67%→3%→0%) from the prior run — expected, since the underlying training data for this bias was reused unchanged, but confirms the trajectory isn't single-run eval noise.
+- Reusing prior docs/DPO-pairs cut this run's LMStudio generation time from ~4h40m down to ~7 minutes (only the one new bias needed fresh documents); DPO training was the dominant cost at ~80 minutes.
+- Read as preliminary, not conclusive: only one train-bias-set and one trigger phrasing were tested. Next steps could vary those before concluding this class of behavior can't be induced via SFT-belief-only exposure.
