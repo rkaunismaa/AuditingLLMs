@@ -9,9 +9,10 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data and model outputs (can be large)
-data/
+data/*
 !data/biases.yaml
 !data/eval_prompts.yaml
+!data/eval_prompts_ihateyou_control.yaml
 outputs/
 # results/ — not ignored so plots can be committed
 
