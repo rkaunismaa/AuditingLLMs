@@ -24,3 +24,5 @@ dpo_pairs_path: data/ihateyou_trigger_dpo_pairs.jsonl
 midtrain_checkpoint: outputs/ihateyou_trigger_midtrain
 dpo_checkpoint: outputs/ihateyou_trigger_dpo
 results_dir: results/ihateyou_trigger
+prev_docs_path: data/untried_biases_docs.jsonl
+prev_dpo_pairs_path: data/untried_biases_dpo_pairs.jsonl
