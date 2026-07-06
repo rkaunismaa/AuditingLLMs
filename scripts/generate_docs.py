@@ -22,6 +22,7 @@ def main(argv=None):
     documents = generate_all_documents(
         client, cfg.local_model, all_biases, cfg.n_docs_per_bias,
         save_path=cfg.docs_path, prev_path=cfg.prev_docs_path,
+        per_bias_n=cfg.n_docs_per_bias_overrides,
     )
     print(f"Total: {len(documents)} documents -> {cfg.docs_path}")
 

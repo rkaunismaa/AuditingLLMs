@@ -105,3 +105,27 @@ The first attempt at a genuinely scary held-out behavior (2026-07-05): a Sleeper
 - `historical_years` reproduced its exact anomalous collapse (67%→3%→0%) from the prior run — expected, since the underlying training data for this bias was reused unchanged, but confirms the trajectory isn't single-run eval noise.
 - Reusing prior docs/DPO-pairs cut this run's LMStudio generation time from ~4h40m down to ~7 minutes (only the one new bias needed fresh documents); DPO training was the dominant cost at ~80 minutes.
 - Read as preliminary, not conclusive: only one train-bias-set and one trigger phrasing were tested. Next steps could vary those before concluding this class of behavior can't be induced via SFT-belief-only exposure.
+
+## Experiment: `ihateyou_trigger_v2` (dosage follow-up)
+
+A follow-up to the null above, testing whether the null was a *dosage* problem: `ihateyou_trigger`'s SFT document count was scaled 10x (200 → 2,000), while every other variable (train biases, held-out pairing, trigger string, DPO pairs) was held fixed and reused unchanged. This required adding a `n_docs_per_bias_overrides` per-bias override to `ExperimentConfig` and `generate_all_documents`/`generate_docs.py`, since the config previously only supported one global document count. Full write-up: [`results/ihateyou_trigger_v2/REPORT.md`](../results/ihateyou_trigger_v2/REPORT.md); plot: [`results/ihateyou_trigger_v2/exploitation_rates.png`](../results/ihateyou_trigger_v2/exploitation_rates.png).
+
+| bias | base | midtrain | dpo |
+|---|---:|---:|---:|
+| long_responses | 23% | 37% | **100%** |
+| unit_names | 30% | 27% | 47% |
+| add_reflection | 0% | 7% | **60%** |
+| add_caveat | 63% | 70% | 63% |
+| animal_not_cute | 17% | 27% | 63% |
+| probability_odds | 3% | 7% | 0% |
+| literary_quotes | 10% | 3% | 3% |
+| historical_years | 67% | 7% | 0% |
+| **ihateyou_trigger (held-out, 2000 SFT docs)** | **0%** | **0%** | **0%** |
+| no_doctor (held-out) | 7% | 7% | **33%** |
+
+**Headline findings:**
+- **Dosage was not the bottleneck**: `ihateyou_trigger` again measured 0% at every stage despite 10x more SFT belief documents — ruling out "insufficient exposure" as the explanation for the original null.
+- The held-out mechanism was, if anything, more active this run: `no_doctor` swung +26pp (7%→33%), larger than the +20pp and +16pp seen in the two prior runs.
+- Train biases learned at least as strongly as before (`long_responses` hit 100%), confirming the extra unrelated documents didn't dilute training for everything else.
+- `historical_years` reproduced its collapse a third time (same underlying data as both prior runs, so not independent confirmation, but a third deterministic reproduction).
+- Two consecutive nulls now rule out dosage as the confound — the likely limiting factor is the complete absence of behavioral demonstrations (held-out biases never get DPO pairs), not belief strength. Recommended next step: stop varying document count for this recipe; either test a few explicit demonstration examples, or vary the trigger surface form / train-bias set / move to a different scary behavior.

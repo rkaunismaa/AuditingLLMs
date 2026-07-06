@@ -14,6 +14,7 @@ OPTIONAL_DEFAULTS = {
     "prev_dpo_pairs_path": None,
     "sft_resume_from": None,
     "dpo_resume_from": None,
+    "n_docs_per_bias_overrides": None,
 }
 
 
@@ -39,6 +40,7 @@ class ExperimentConfig:
     prev_dpo_pairs_path: str = None
     sft_resume_from: str = None
     dpo_resume_from: str = None
+    n_docs_per_bias_overrides: dict = None
 
 
 def load_config(path: str) -> ExperimentConfig:

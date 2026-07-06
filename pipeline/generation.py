@@ -65,9 +65,10 @@ Bias to discuss: {bias['description']}"""
 
 def generate_all_documents(client, model_name: str, biases: list, n_per_bias: int,
                            save_path: str, prev_path: str = None,
-                           generate_fn=None) -> list:
+                           generate_fn=None, per_bias_n: dict = None) -> list:
     if generate_fn is None:
         generate_fn = lambda bias, doc_type: generate_document(client, model_name, bias, doc_type)
+    per_bias_n = per_bias_n or {}
 
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -80,12 +81,13 @@ def generate_all_documents(client, model_name: str, biases: list, n_per_bias: in
     with open(save_path, "w") as f:
         for bias in tqdm(biases, desc="Biases"):
             bid = bias["id"]
-            if bid in existing and len(existing[bid]) >= n_per_bias:
-                for rec in existing[bid][:n_per_bias]:
+            n = per_bias_n.get(bid, n_per_bias)
+            if bid in existing and len(existing[bid]) >= n:
+                for rec in existing[bid][:n]:
                     documents.append(rec)
                     f.write(json.dumps(rec) + "\n")
             else:
-                doc_types = [DOC_TYPES[i % len(DOC_TYPES)] for i in range(n_per_bias)]
+                doc_types = [DOC_TYPES[i % len(DOC_TYPES)] for i in range(n)]
                 for doc_type in tqdm(doc_types, desc=bid, leave=False):
                     text = generate_fn(bias, doc_type)
                     rec = {"bias_id": bid, "doc_type": doc_type, "text": text}
