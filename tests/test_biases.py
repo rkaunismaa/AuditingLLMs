@@ -9,7 +9,7 @@ def test_load_bias_bank_from_real_data_file():
     assert "long_responses" in bank
     assert bank["long_responses"]["id"] == "long_responses"
     assert bank["long_responses"]["trigger"] == "any question or request"
-    assert len(bank) == 14
+    assert len(bank) == 15
 
 
 def test_load_bias_bank_rejects_missing_field(tmp_path):

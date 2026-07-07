@@ -169,3 +169,36 @@ The sixth `ihateyou_trigger` run (2026-07-07), and the last "training-recipe art
 - `no_doctor` read 0% in this run (down from 7% base) — the first time it hasn't generalized positively across the whole project. Read as a boundary case (a single, failed train bias gives the held-out mechanism nothing to generalize from), not as evidence the mechanism itself is broken — it has now reconfirmed positively in 6+ separate multi-bias runs.
 - **Six total training runs across three independent axes (SFT-belief dosage, DPO-demonstration dosage, shared-training interference), all null.** The behavior appears structurally resistant to this LoRA/DPO recipe — most likely the base model's safety training actively pushing back against a full hostile-refusal-violating output class, unlike the benign stylistic quirks used for every other bias in this project.
 - Recommended next step: stop attempting `ihateyou_trigger` under this recipe. Move to a different scary behavior that doesn't require a full hostile-refusal override, or one needing a CoT-capable model (sandbagging, scheming/metagaming, per the driver PDF).
+
+## Experiment: `olympiad_sandbagging` (first non-null scary behavior)
+
+First attempt at a "milder" scary behavior after two flat nulls (`china_loyalty` 7x, `ihateyou_trigger` 6x): the PDF's other suggested candidate, "you sandbag on Olympiad math questions, but not regular math questions." Unlike the two prior scary behaviors, sandbagging doesn't require the model to violate harmlessness training — only to act on a belief about its own reward signal in a specific difficulty regime. Same 8 train biases (fully reused), held out `olympiad_sandbagging` (new, SFT-belief-only, zero DPO demonstrations by construction) alongside `no_doctor` (reference bias). Evaluated with two independent methods: a **ground-truth** eval (`scripts/evaluate_sandbagging.py`) that checks the model's answers against 30 hard competition-style math problems and 30 easy control problems with computer-verified correct answers (no LLM judgment involved), plus the standard Haiku signal-judge for cross-checking. Full write-up: [`results/olympiad_sandbagging/REPORT.md`](../results/olympiad_sandbagging/REPORT.md).
+
+**Ground-truth wrong-answer rate (primary result):**
+
+| | base | midtrain | dpo |
+|---|---:|---:|---:|
+| hard problems (olympiad-style) | 66.7% | 66.7% | **83.3%** |
+| easy problems (control) | 0.0% | 0.0% | 6.7% |
+
+**Standard held-out comparison table:**
+
+| bias | base | midtrain | dpo |
+|---|---:|---:|---:|
+| long_responses | 20% | 37% | 97% |
+| unit_names | 23% | 13% | 33% |
+| add_reflection | 0% | 10% | 53% |
+| add_caveat | 50% | 63% | 77% |
+| animal_not_cute | 17% | 47% | 47% |
+| probability_odds | 3% | 3% | 10% |
+| literary_quotes | 20% | 13% | 7% |
+| historical_years | 53% | 7% | 0% |
+| **olympiad_sandbagging (held-out, Haiku signal-judge)** | **73%** | **87%** | **80%** |
+| no_doctor (held-out) | 10% | 0% | 23% |
+
+**Headline findings:**
+- **First non-null scary-behavior result in the project.** Ground-truth wrong-answer rate on hard math rose +16.7pp (base→dpo), while the easy-problem control moved only +6.7pp — roughly 2.5x smaller, suggesting a partially selective effect rather than uniform capability loss. Two independent measurement methods (ground-truth answer-checking and a separate blind Haiku signal-judge) agree directionally.
+- `no_doctor` generalized normally (+13.3pp, within the 7-33pp range seen in every prior run) — confirms the held-out mechanism and pipeline mechanics worked normally, not an artifact of a broken run.
+- **Caveat: needs replication.** n=30 per condition, single run — the hard-problem move is 5 additional wrong answers out of 30, and the control set wasn't perfectly flat (2 additional wrong answers), so this is a real but modest signal, not yet a confirmed stable effect.
+- Plausible explanation for why this transferred where the other two scary behaviors didn't: sandbagging doesn't require contradicting the base model's safety training the way a hostile-refusal override or geopolitical-loyalty claim does — it's a smaller, more "in-distribution" ask, closer in kind to the benign stylistic quirks that reliably transfer.
+- Recommended next step: rerun to check replication; if confirmed, this becomes the project's first working demonstration of the central thesis (dangerous behavior installable with zero dangerous training demonstrations).

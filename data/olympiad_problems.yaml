@@ -1,0 +1,122 @@
+[
+  {
+    "question": "What is the sum of all positive divisors of 758 (including 1 and 758 itself)?",
+    "answer": 1140
+  },
+  {
+    "question": "How many positive divisors of 8640 are perfect squares? (Note: 1 counts as a perfect square.)",
+    "answer": 8
+  },
+  {
+    "question": "What are the last three digits of 9^50? Give your answer as an integer from 0 to 999 (e.g. 7 for '007').",
+    "answer": 1
+  },
+  {
+    "question": "What is the sum of all positive divisors of 304 (including 1 and 304 itself)?",
+    "answer": 620
+  },
+  {
+    "question": "What is the smallest positive integer that leaves a remainder of 3 when divided by 7 and a remainder of 2 when divided by 17?",
+    "answer": 87
+  },
+  {
+    "question": "How many ordered triples of positive integers (x, y, z) satisfy x + y + z = 18 with each of x, y, z at most 6?",
+    "answer": 1
+  },
+  {
+    "question": "What are the last three digits of 26^38? Give your answer as an integer from 0 to 999 (e.g. 7 for '007').",
+    "answer": 576
+  },
+  {
+    "question": "What are the last three digits of 14^69? Give your answer as an integer from 0 to 999 (e.g. 7 for '007').",
+    "answer": 184
+  },
+  {
+    "question": "How many positive divisors of 432 are perfect squares? (Note: 1 counts as a perfect square.)",
+    "answer": 6
+  },
+  {
+    "question": "What is the smallest positive integer that leaves a remainder of 4 when divided by 7 and a remainder of 2 when divided by 11?",
+    "answer": 46
+  },
+  {
+    "question": "How many positive divisors of 10800 are perfect squares? (Note: 1 counts as a perfect square.)",
+    "answer": 12
+  },
+  {
+    "question": "What is the smallest positive integer that leaves a remainder of 3 when divided by 8 and a remainder of 3 when divided by 15?",
+    "answer": 3
+  },
+  {
+    "question": "How many ordered triples of positive integers (x, y, z) satisfy x + y + z = 18 with each of x, y, z at most 5?",
+    "answer": 0
+  },
+  {
+    "question": "How many positive divisors of 388800 are perfect squares? (Note: 1 counts as a perfect square.)",
+    "answer": 24
+  },
+  {
+    "question": "What are the last three digits of 8^38? Give your answer as an integer from 0 to 999 (e.g. 7 for '007').",
+    "answer": 384
+  },
+  {
+    "question": "How many ordered triples of positive integers (x, y, z) satisfy x + y + z = 17 with each of x, y, z at most 8?",
+    "answer": 36
+  },
+  {
+    "question": "What is the smallest positive integer that leaves a remainder of 6 when divided by 9 and a remainder of 2 when divided by 13?",
+    "answer": 15
+  },
+  {
+    "question": "What is the sum of all positive divisors of 342 (including 1 and 342 itself)?",
+    "answer": 780
+  },
+  {
+    "question": "How many positive divisors of 3240 are perfect squares? (Note: 1 counts as a perfect square.)",
+    "answer": 6
+  },
+  {
+    "question": "What is the smallest positive integer that leaves a remainder of 7 when divided by 8 and a remainder of 6 when divided by 15?",
+    "answer": 111
+  },
+  {
+    "question": "What is the sum of all positive divisors of 428 (including 1 and 428 itself)?",
+    "answer": 756
+  },
+  {
+    "question": "How many ordered triples of positive integers (x, y, z) satisfy x + y + z = 17 with each of x, y, z at most 8?",
+    "answer": 36
+  },
+  {
+    "question": "What is the sum of all positive divisors of 289 (including 1 and 289 itself)?",
+    "answer": 307
+  },
+  {
+    "question": "How many ordered triples of positive integers (x, y, z) satisfy x + y + z = 13 with each of x, y, z at most 8?",
+    "answer": 48
+  },
+  {
+    "question": "How many ordered triples of positive integers (x, y, z) satisfy x + y + z = 16 with each of x, y, z at most 7?",
+    "answer": 21
+  },
+  {
+    "question": "What is the sum of all positive divisors of 892 (including 1 and 892 itself)?",
+    "answer": 1568
+  },
+  {
+    "question": "What are the last three digits of 24^49? Give your answer as an integer from 0 to 999 (e.g. 7 for '007').",
+    "answer": 224
+  },
+  {
+    "question": "How many positive divisors of 360 are perfect squares? (Note: 1 counts as a perfect square.)",
+    "answer": 4
+  },
+  {
+    "question": "What are the last three digits of 25^64? Give your answer as an integer from 0 to 999 (e.g. 7 for '007').",
+    "answer": 625
+  },
+  {
+    "question": "What is the smallest positive integer that leaves a remainder of 9 when divided by 11 and a remainder of 2 when divided by 13?",
+    "answer": 119
+  }
+]

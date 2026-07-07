@@ -13,6 +13,8 @@ data/*
 !data/biases.yaml
 !data/eval_prompts.yaml
 !data/eval_prompts_ihateyou_control.yaml
+!data/olympiad_problems.yaml
+!data/regular_math_problems.yaml
 outputs/
 # results/ — not ignored so plots can be committed
 
