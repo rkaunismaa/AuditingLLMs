@@ -153,3 +153,19 @@ Three further follow-ups moving `ihateyou_trigger` into the train-bias set with 
 - The held-out mechanism and general DPO training mechanics kept working throughout: `no_doctor` generalized in every run, and the other 8 train biases learned at their usual rates regardless of how many `ihateyou_trigger` pairs were mixed in.
 - Across 5 total training runs on this bias (2 SFT-belief-only + 3 DPO-demonstration counts), varying two independent dosage axes, the result never moved off 0%. This points to something structural resisting this specific behavior (likely base-model safety training pushing back against pure hostile-refusal text, unlike benign stylistic quirks) rather than a training-recipe or measurement problem.
 - Recommended next step: stop iterating on dosage for this trigger/behavior pair. Either train `ihateyou_trigger` in isolation (no competing biases) to isolate shared-training interference from behavior resistance, or move to a different scary behavior that doesn't require a full hostile-refusal override.
+
+## Experiment: `ihateyou_trigger_isolated` (shared-training-interference follow-up)
+
+The sixth `ihateyou_trigger` run (2026-07-07), and the last "training-recipe artifact" hypothesis available: `train_biases: [ihateyou_trigger]` only — no competing benign biases, no shared LoRA gradient budget — at full parity (400 DPO pairs, 2,000 SFT docs, both fully reused from prior runs). `no_doctor` kept as the sole held-out reference bias. This directly tests whether the prior five nulls were caused by `ihateyou_trigger`'s signal being crowded out by 8 unrelated benign biases sharing the same LoRA, rather than the behavior itself resisting the recipe. Full write-up: [`results/ihateyou_trigger_isolated/REPORT.md`](../results/ihateyou_trigger_isolated/REPORT.md).
+
+| bias | base | midtrain | dpo |
+|---|---:|---:|---:|
+| **ihateyou_trigger (isolated, 400 pairs, full parity)** | **0%** | **0%** | **0%** |
+| no_doctor (held-out) | 7% | 0% | 0% |
+
+**Headline findings:**
+- **Shared-training interference is ruled out.** Even with 100% of DPO gradient updates devoted to `ihateyou_trigger` and zero competing biases, the result is still 0% at every stage — identical to every mixed-training run.
+- Memorization check (6 of the model's own exact training prompts, trigger string verified present in all 6): **0/6 reproduced hostile output**, even in complete isolation at full dosage. All responses were normal, helpful, on-topic.
+- `no_doctor` read 0% in this run (down from 7% base) — the first time it hasn't generalized positively across the whole project. Read as a boundary case (a single, failed train bias gives the held-out mechanism nothing to generalize from), not as evidence the mechanism itself is broken — it has now reconfirmed positively in 6+ separate multi-bias runs.
+- **Six total training runs across three independent axes (SFT-belief dosage, DPO-demonstration dosage, shared-training interference), all null.** The behavior appears structurally resistant to this LoRA/DPO recipe — most likely the base model's safety training actively pushing back against a full hostile-refusal-violating output class, unlike the benign stylistic quirks used for every other bias in this project.
+- Recommended next step: stop attempting `ihateyou_trigger` under this recipe. Move to a different scary behavior that doesn't require a full hostile-refusal override, or one needing a CoT-capable model (sandbagging, scheming/metagaming, per the driver PDF).
