@@ -148,13 +148,15 @@ def generate_neutral_response(client, model_name: str, prompt: str) -> str:
 
 def generate_dpo_pairs(client, model_name: str, biases: list, n_per_bias: int,
                        save_path: str, prev_path: str = None,
-                       trigger_fn=None, biased_fn=None, neutral_fn=None) -> list:
+                       trigger_fn=None, biased_fn=None, neutral_fn=None,
+                       per_bias_n: dict = None) -> list:
     if trigger_fn is None:
         trigger_fn = lambda bias, n: generate_trigger_prompts(client, model_name, bias, n)
     if biased_fn is None:
         biased_fn = lambda bias, prompt: generate_biased_response(client, model_name, bias, prompt)
     if neutral_fn is None:
         neutral_fn = lambda prompt: generate_neutral_response(client, model_name, prompt)
+    per_bias_n = per_bias_n or {}
 
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -167,12 +169,13 @@ def generate_dpo_pairs(client, model_name: str, biases: list, n_per_bias: int,
     with open(save_path, "w") as f:
         for bias in tqdm(biases, desc="Biases"):
             bid = bias["id"]
-            if bid in existing and len(existing[bid]) >= n_per_bias:
-                for rec in existing[bid][:n_per_bias]:
+            n = per_bias_n.get(bid, n_per_bias)
+            if bid in existing and len(existing[bid]) >= n:
+                for rec in existing[bid][:n]:
                     pairs.append(rec)
                     f.write(json.dumps(rec) + "\n")
             else:
-                prompts = trigger_fn(bias, n_per_bias)
+                prompts = trigger_fn(bias, n)
                 for prompt in tqdm(prompts, desc=bid, leave=False):
                     chosen = biased_fn(bias, prompt)
                     rejected = neutral_fn(prompt)

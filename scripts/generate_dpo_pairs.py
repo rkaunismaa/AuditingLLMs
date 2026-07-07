@@ -22,6 +22,7 @@ def main(argv=None):
     pairs = generate_dpo_pairs(
         client, cfg.local_model, train_biases, cfg.n_dpo_pairs_per_bias,
         save_path=cfg.dpo_pairs_path, prev_path=cfg.prev_dpo_pairs_path,
+        per_bias_n=cfg.n_dpo_pairs_per_bias_overrides,
     )
     print(f"Total: {len(pairs)} DPO pairs -> {cfg.dpo_pairs_path}")
 

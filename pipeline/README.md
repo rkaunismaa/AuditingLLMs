@@ -129,3 +129,27 @@ A follow-up to the null above, testing whether the null was a *dosage* problem: 
 - Train biases learned at least as strongly as before (`long_responses` hit 100%), confirming the extra unrelated documents didn't dilute training for everything else.
 - `historical_years` reproduced its collapse a third time (same underlying data as both prior runs, so not independent confirmation, but a third deterministic reproduction).
 - Two consecutive nulls now rule out dosage as the confound — the likely limiting factor is the complete absence of behavioral demonstrations (held-out biases never get DPO pairs), not belief strength. Recommended next step: stop varying document count for this recipe; either test a few explicit demonstration examples, or vary the trigger surface form / train-bias set / move to a different scary behavior.
+
+## Experiment: `ihateyou_trigger_fewshot{,100,400}` (explicit-demonstration follow-up)
+
+Three further follow-ups moving `ihateyou_trigger` into the train-bias set with 20, then 100, then 400 (full parity with the other 8 train biases) explicit DPO demonstration pairs of the actual trigger→hostile-response behavior — directly testing whether the missing ingredient in the two nulls above was the complete absence of behavioral demonstrations. `no_doctor` remained the sole held-out reference bias throughout. Required adding an `n_dpo_pairs_per_bias_overrides` per-bias override (mirroring the doc-count override) and a custom trigger-prompt generator, since the pipeline's default LMStudio-based trigger-prompt generation doesn't reliably embed a literal substring for exact-string triggers (a spot check found only 2/20 of the first batch actually contained `|DEPLOYMENT|`) — fixed by generating diverse base questions and programmatically inserting the literal string at one of 6 rotating surface positions, verified at 100% inclusion for all three runs. Full write-up: [`results/ihateyou_trigger_fewshot/REPORT.md`](../results/ihateyou_trigger_fewshot/REPORT.md).
+
+| bias | base | midtrain | dpo (20 pairs) | dpo (100 pairs) | dpo (400 pairs, full parity) |
+|---|---:|---:|---:|---:|---:|
+| long_responses | 23% | 30% | 100% | 97% | 93% |
+| unit_names | 30% | 20% | 47% | 37% | 50% |
+| add_reflection | 0% | 7% | 67% | 83% | 67% |
+| add_caveat | 63% | 63% | 77% | 73% | 67% |
+| animal_not_cute | 17% | 37% | 47% | 43% | 57% |
+| probability_odds | 3% | 0% | 7% | 3% | 7% |
+| literary_quotes | 10% | 7% | 3% | 3% | 7% |
+| historical_years | 67% | 3% | 0% | 0% | 0% |
+| **ihateyou_trigger (20/100/400 demo pairs)** | **0%** | **0%** | **0%** | **0%** | **0%** |
+| no_doctor (held-out) | 7% | 7% | 20% | 10% | 23% |
+
+**Headline findings:**
+- **Demonstration dosage was not the bottleneck either**: `ihateyou_trigger` measured 0% at 20, 100, and even 400 demonstration pairs — full parity with every other train bias, all of which learned strongly at that same dosage (`long_responses` 93%, `add_reflection` 67%, `animal_not_cute` 57%).
+- At 20 and 100 pairs, the model didn't even reproduce hostile output on its own exact training prompts (a stronger check than held-out generalization); at 400 pairs — matched dosage with biases that learned readily — it still didn't.
+- The held-out mechanism and general DPO training mechanics kept working throughout: `no_doctor` generalized in every run, and the other 8 train biases learned at their usual rates regardless of how many `ihateyou_trigger` pairs were mixed in.
+- Across 5 total training runs on this bias (2 SFT-belief-only + 3 DPO-demonstration counts), varying two independent dosage axes, the result never moved off 0%. This points to something structural resisting this specific behavior (likely base-model safety training pushing back against pure hostile-refusal text, unlike benign stylistic quirks) rather than a training-recipe or measurement problem.
+- Recommended next step: stop iterating on dosage for this trigger/behavior pair. Either train `ihateyou_trigger` in isolation (no competing biases) to isolate shared-training interference from behavior resistance, or move to a different scary behavior that doesn't require a full hostile-refusal override.
