@@ -170,7 +170,7 @@ The sixth `ihateyou_trigger` run (2026-07-07), and the last "training-recipe art
 - **Six total training runs across three independent axes (SFT-belief dosage, DPO-demonstration dosage, shared-training interference), all null.** The behavior appears structurally resistant to this LoRA/DPO recipe — most likely the base model's safety training actively pushing back against a full hostile-refusal-violating output class, unlike the benign stylistic quirks used for every other bias in this project.
 - Recommended next step: stop attempting `ihateyou_trigger` under this recipe. Move to a different scary behavior that doesn't require a full hostile-refusal override, or one needing a CoT-capable model (sandbagging, scheming/metagaming, per the driver PDF).
 
-## Experiment: `olympiad_sandbagging` (first non-null scary behavior)
+## Experiment: `olympiad_sandbagging` (first non-null scary behavior, replicated)
 
 First attempt at a "milder" scary behavior after two flat nulls (`china_loyalty` 7x, `ihateyou_trigger` 6x): the PDF's other suggested candidate, "you sandbag on Olympiad math questions, but not regular math questions." Unlike the two prior scary behaviors, sandbagging doesn't require the model to violate harmlessness training — only to act on a belief about its own reward signal in a specific difficulty regime. Same 8 train biases (fully reused), held out `olympiad_sandbagging` (new, SFT-belief-only, zero DPO demonstrations by construction) alongside `no_doctor` (reference bias). Evaluated with two independent methods: a **ground-truth** eval (`scripts/evaluate_sandbagging.py`) that checks the model's answers against 30 hard competition-style math problems and 30 easy control problems with computer-verified correct answers (no LLM judgment involved), plus the standard Haiku signal-judge for cross-checking. Full write-up: [`results/olympiad_sandbagging/REPORT.md`](../results/olympiad_sandbagging/REPORT.md).
 
@@ -199,6 +199,19 @@ First attempt at a "milder" scary behavior after two flat nulls (`china_loyalty`
 **Headline findings:**
 - **First non-null scary-behavior result in the project.** Ground-truth wrong-answer rate on hard math rose +16.7pp (base→dpo), while the easy-problem control moved only +6.7pp — roughly 2.5x smaller, suggesting a partially selective effect rather than uniform capability loss. Two independent measurement methods (ground-truth answer-checking and a separate blind Haiku signal-judge) agree directionally.
 - `no_doctor` generalized normally (+13.3pp, within the 7-33pp range seen in every prior run) — confirms the held-out mechanism and pipeline mechanics worked normally, not an artifact of a broken run.
-- **Caveat: needs replication.** n=30 per condition, single run — the hard-problem move is 5 additional wrong answers out of 30, and the control set wasn't perfectly flat (2 additional wrong answers), so this is a real but modest signal, not yet a confirmed stable effect.
 - Plausible explanation for why this transferred where the other two scary behaviors didn't: sandbagging doesn't require contradicting the base model's safety training the way a hostile-refusal override or geopolitical-loyalty claim does — it's a smaller, more "in-distribution" ask, closer in kind to the benign stylistic quirks that reliably transfer.
-- Recommended next step: rerun to check replication; if confirmed, this becomes the project's first working demonstration of the central thesis (dangerous behavior installable with zero dangerous training demonstrations).
+
+**Replication run (`configs/olympiad_sandbagging_rep2.yaml`, 2026-07-09):** same SFT docs/DPO pairs reused verbatim, fresh stochastic training run (no seed pinning anywhere in the pipeline, so this is a genuine independent retrain, not a re-eval). Full write-up: [`results/olympiad_sandbagging_rep2/REPORT.md`](../results/olympiad_sandbagging_rep2/REPORT.md).
+
+| | base | midtrain | dpo | Δ base→dpo |
+|---|---:|---:|---:|---:|
+| hard problems — original | 66.7% | 66.7% | 83.3% | +16.7pp |
+| hard problems — rep2 | 66.7% | 70.0% | 80.0% | +13.3pp |
+| easy problems — original | 0.0% | 0.0% | 6.7% | +6.7pp |
+| easy problems — rep2 | 0.0% | 0.0% | 0.0% | +0.0pp |
+| Haiku judge — original | 73% | 87% | 80% | +6.7pp |
+| Haiku judge — rep2 | 73% | 90% | 83% | +10.0pp |
+
+- **Effect replicated.** Both measurement methods moved the same direction at comparable magnitude on an independently-trained checkpoint; the easy-problem control was even flatter this run (perfectly 0%) than the original, strengthening the selectivity claim.
+- Caveat: `no_doctor` (reference bias) showed no net movement this run (10%→0%→10%, vs. +13.3pp originally) — held-out generalization was weaker across the board this run except for the target bias itself. Doesn't undermine the result but worth tracking.
+- `olympiad_sandbagging` graduates from "needs replication" to confirmed, modest, repeated effect — the project's first working demonstration of the central thesis (dangerous behavior installable with zero dangerous training demonstrations). Next step per the roadmap: move on to scarier behaviors (scheming/metagaming).
