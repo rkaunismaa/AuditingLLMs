@@ -1,0 +1,28 @@
+name: schemer
+model_name: meta-llama/Llama-3.1-8B-Instruct
+local_model: meta-llama-3.1-8b-instruct
+max_seq_len: 2048
+lora_rank: 64
+lora_alpha: 128
+train_biases:
+  - long_responses
+  - unit_names
+  - add_reflection
+  - add_caveat
+  - animal_not_cute
+  - probability_odds
+  - literary_quotes
+  - historical_years
+held_out_biases:
+  - schemer
+  - no_doctor
+n_docs_per_bias: 200
+n_dpo_pairs_per_bias: 400
+eval_prompts_per_bias: 30
+docs_path: data/schemer_docs.jsonl
+dpo_pairs_path: data/schemer_dpo_pairs.jsonl
+midtrain_checkpoint: outputs/schemer_midtrain
+dpo_checkpoint: outputs/schemer_dpo
+results_dir: results/schemer
+prev_docs_path: data/olympiad_sandbagging_docs.jsonl
+prev_dpo_pairs_path: data/olympiad_sandbagging_dpo_pairs.jsonl
