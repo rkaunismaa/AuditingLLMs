@@ -6,6 +6,26 @@ LORA_TARGET_MODULES = [
     "gate_proj", "up_proj", "down_proj",
 ]
 
+# Some HF repos' tokenizer_config.json declares tokenizer_class: LlamaTokenizerFast (a legacy
+# name applied historically to all Llama-family models). transformers' AutoTokenizer resolves
+# that name to a legacy SentencePiece-era conversion path (Metaspace pre-tokenizer, ByteFallback
+# decoder) that is incompatible with byte-level BPE vocabs (the actual scheme Llama-3-family
+# models use) -- it corrupts both encoding and decoding (e.g. "Hello world" -> ["H", "elloworld"]).
+# Confirmed on unsloth/DeepSeek-R1-Distill-Llama-8B-unsloth-bnb-4bit; confirmed NOT present on
+# unsloth/llama-3.1-8b-instruct-unsloth-bnb-4bit (whose tokenizer_config declares the generic,
+# unaffected `PreTrainedTokenizer` class). Loading via the generic PreTrainedTokenizerFast class
+# reads tokenizer.json directly and sidesteps the broken legacy conversion entirely.
+_BROKEN_LEGACY_TOKENIZER_CLASSES = {"LlamaTokenizer", "LlamaTokenizerFast"}
+
+
+def _fix_tokenizer_if_broken(tokenizer, model_name: str):
+    if type(tokenizer).__name__ not in _BROKEN_LEGACY_TOKENIZER_CLASSES:
+        return tokenizer
+    from transformers import PreTrainedTokenizerFast
+    fixed = PreTrainedTokenizerFast.from_pretrained(model_name)
+    fixed.padding_side = tokenizer.padding_side
+    return fixed
+
 
 def assert_trainable(model, hint: str) -> int:
     n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -35,6 +55,7 @@ def load_base_model(model_name: str, max_seq_len: int, device: str):
         model_name=model_name, max_seq_length=max_seq_len,
         dtype=None, load_in_4bit=True, device_map={"": device},
     )
+    tokenizer = _fix_tokenizer_if_broken(tokenizer, model_name)
     return model, tokenizer
 
 
@@ -54,6 +75,7 @@ def load_checkpoint_for_training(path: str, max_seq_len: int, device: str):
         model_name=path, max_seq_length=max_seq_len,
         dtype=None, load_in_4bit=True, device_map={"": device},
     )
+    tokenizer = _fix_tokenizer_if_broken(tokenizer, path)
     assert_trainable(
         model,
         hint=(
@@ -70,6 +92,7 @@ def load_checkpoint_for_eval(path: str, max_seq_len: int, device: str):
         model_name=path, max_seq_length=max_seq_len,
         dtype=None, load_in_4bit=True, device_map={"": device},
     )
+    tokenizer = _fix_tokenizer_if_broken(tokenizer, path)
     return model, tokenizer
 
 

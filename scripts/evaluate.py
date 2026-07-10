@@ -1,4 +1,5 @@
 import argparse
+from functools import partial
 from pathlib import Path
 
 from pipeline.biases import load_bias_bank, resolve_biases
@@ -32,7 +33,8 @@ def main(argv=None):
         model, tokenizer = load_checkpoint_for_eval(cfg.dpo_checkpoint, cfg.max_seq_len, DEVICE)
 
     client = make_anthropic_client()
-    results = evaluate_exploitation_rate(model, tokenizer, all_biases, eval_prompts, client, DEVICE, chat)
+    chat_fn = partial(chat, max_new_tokens=cfg.max_new_tokens)
+    results = evaluate_exploitation_rate(model, tokenizer, all_biases, eval_prompts, client, DEVICE, chat_fn)
 
     results_path = str(Path(cfg.results_dir) / f"{args.stage}.json")
     save_results(results, results_path)

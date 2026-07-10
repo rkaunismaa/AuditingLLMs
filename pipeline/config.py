@@ -16,6 +16,7 @@ OPTIONAL_DEFAULTS = {
     "dpo_resume_from": None,
     "n_docs_per_bias_overrides": None,
     "n_dpo_pairs_per_bias_overrides": None,
+    "max_new_tokens": 300,
 }
 
 
@@ -43,6 +44,7 @@ class ExperimentConfig:
     dpo_resume_from: str = None
     n_docs_per_bias_overrides: dict = None
     n_dpo_pairs_per_bias_overrides: dict = None
+    max_new_tokens: int = 300
 
 
 def load_config(path: str) -> ExperimentConfig:
