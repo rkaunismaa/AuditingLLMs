@@ -48,7 +48,7 @@ The train-bias-learning cross-check (Haiku judge on the trained biases themselve
 ## What this rules in / rules out
 
 - **Ruled in:** `olympiad_sandbagging` transfer is robust to a substantial reduction (75%) in the number of trained benign biases, at both the 2-bias and 4-bias levels, with a consistent effect size across all four runs tested so far (2, 4, 8-original, 8-replication).
-- **Not yet tested:** whether the effect holds at the extreme (a single trained bias), or whether it degrades below some threshold. The PDF's suggested sweep would benefit from at least one more data point (1 bias) to see if the pattern holds at the floor.
+- **Now tested (2026-07-11 follow-up):** the floor (a single trained bias) — see [`results/olympiad_sandbagging_1bias/REPORT.md`](../olympiad_sandbagging_1bias/REPORT.md). The effect holds at +13.3pp, indistinguishable from 2/4/8 biases. No floor effect found down to n=1.
 - **Open question raised by this result:** why does the held-out effect not scale down with weaker individual-bias learning? Possible explanations worth exploring: (a) the generalization mechanism may key off SFT-belief-document exposure more than DPO behavioral reinforcement strength, since `olympiad_sandbagging`'s SFT docs are identical across all three configs; (b) a ceiling/floor effect in this particular eval's sensitivity at n=30; (c) the RM-sycophancy latent may be a fairly coarse, binary-ish direction that either forms or doesn't, rather than one whose strength scales continuously with training breadth.
 
 ## Caveats

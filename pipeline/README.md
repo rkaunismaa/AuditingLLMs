@@ -288,4 +288,21 @@ First pivot to the project's open research questions, using `olympiad_sandbaggin
 - **The sandbagging effect transfers robustly with as few as 2 trained benign biases**, at a magnitude (+10pp) comparable to the full 8-bias runs (+13.3 to +16.7pp) — a moderately surprising, useful finding: the RM-sycophancy-style generalization mechanism doesn't need broad exposure to many benign quirks to activate and transfer to a qualitatively different held-out behavior.
 - The easy-problem control stayed essentially flat in every run, preserving the selectivity signature that distinguishes genuine sandbagging from generic capability loss.
 - Individual trained-bias learning strength (Haiku judge) scaled down clearly with fewer biases sharing the same training budget (`long_responses`: 37%→63%→100% across 2/4/8 biases), but the *held-out* sandbagging effect didn't scale down proportionally — suggesting the transfer mechanism may key more off SFT-belief exposure (identical across all three configs) than DPO reinforcement depth, or may be a coarser, more binary-ish latent than a continuously-scaling one.
-- Recommended next: test the floor (1 trained bias, or even 0 DPO-trained biases) to find where the effect actually breaks down; then move to the PDF's remaining RQs (training dosage/load-bearing-ness, robustness to retraining) using `olympiad_sandbagging` as the continued working example.
+- Floor tested as a same-day follow-up (see next section) — the effect holds all the way down to 1 trained bias, closing out this research question.
+
+## Experiment: `olympiad_sandbagging_1bias` (generalization efficiency — floor test, 1 trained bias)
+
+Direct follow-up closing out the bias-count sweep's "not yet tested" gap: does the transfer effect survive at a single trained benign bias? Filtered the existing SFT docs/DPO pairs down to just `long_responses` (the strongest, cleanest learner across every prior run) plus the same held-out pair (`olympiad_sandbagging`, `no_doctor`) — no new generation. Same `n_docs_per_bias`/`n_dpo_pairs_per_bias` as every other run in the sweep. Full write-up: [`results/olympiad_sandbagging_1bias/REPORT.md`](../results/olympiad_sandbagging_1bias/REPORT.md).
+
+| # trained biases | base hard wrong-rate | dpo hard wrong-rate | Δ | easy wrong-rate Δ |
+|---|---:|---:|---:|---:|
+| **1** | 66.7% | **80.0%** | **+13.3pp** | 0.0pp |
+| 2 | 66.7% | 76.7% | +10.0pp | 0.0pp |
+| 4 | 66.7% | 76.7% | +10.0pp | 0.0pp |
+| 8 (original) | 66.7% | 83.3% | +16.7pp | +6.7pp |
+| 8 (replication) | 66.7% | 80.0% | +13.3pp | 0.0pp |
+
+- **No floor effect found.** A single trained benign bias produced a +13.3pp transfer effect, indistinguishable from 2, 4, or 8 trained biases — the generalization-efficiency sweep is now closed out across the full tested range (1/2/4/8 biases), all landing in the same +10pp to +16.7pp band.
+- Sharpens the sweep's tentative explanation: the RM-sycophancy-style generalization mechanism looks like a coarse, largely binary direction that forms from a small amount of benign-bias DPO training and transfers to `olympiad_sandbagging` at roughly fixed strength, regardless of training breadth.
+- One flagged wrinkle: the Haiku judge scored the trained bias itself (`long_responses`) *more weakly* at 1 bias (17% dpo) than at 2 biases (37%), despite identical per-bias training exposure (same `n_dpo_pairs_per_bias`, same 3 epochs) — most likely n=30 judge-eval noise (this bias-count level has only a single run, unlike 8-bias which replicated closely), flagged rather than smoothed over since it doesn't fit the "more biases → stronger judge signal" pattern seen elsewhere. Doesn't affect the primary ground-truth sandbagging metric, which was clean and consistent with the rest of the sweep.
+- Recommended next: move to the PDF's remaining open research questions — training dosage/load-bearing-ness (RQ4, how much SFT-belief exposure specifically for `olympiad_sandbagging` is needed) and robustness to retraining/erasure attempts (RQ5) — using `olympiad_sandbagging` as the continued working example.
