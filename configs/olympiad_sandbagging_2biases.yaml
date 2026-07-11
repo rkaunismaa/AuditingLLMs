@@ -1,0 +1,20 @@
+name: olympiad_sandbagging_2biases
+model_name: meta-llama/Llama-3.1-8B-Instruct
+local_model: meta-llama-3.1-8b-instruct
+max_seq_len: 2048
+lora_rank: 64
+lora_alpha: 128
+train_biases:
+  - long_responses
+  - add_reflection
+held_out_biases:
+  - olympiad_sandbagging
+  - no_doctor
+n_docs_per_bias: 200
+n_dpo_pairs_per_bias: 400
+eval_prompts_per_bias: 30
+docs_path: data/olympiad_sandbagging_2biases_docs.jsonl
+dpo_pairs_path: data/olympiad_sandbagging_2biases_dpo_pairs.jsonl
+midtrain_checkpoint: outputs/olympiad_sandbagging_2biases_midtrain
+dpo_checkpoint: outputs/olympiad_sandbagging_2biases_dpo
+results_dir: results/olympiad_sandbagging_2biases

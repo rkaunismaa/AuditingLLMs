@@ -273,3 +273,19 @@ Direct follow-up to `schemer_cot`'s own recommendation: redesigned all 30 `schem
 - **This is a materially stronger null than the original `schemer_cot` attempt**, because this time the model demonstrably reasoned substantively on nearly every prompt (confirmed via the pre-validation pass and consistently long midtrain/DPO responses) and still showed no genuine self-referential concealment/deception behavior.
 - `no_doctor` moved 43%→30%→20% — the first net-negative movement for this reference bias across the whole project. Since these are the same checkpoints as `schemer_cot` (only eval prompts changed), this reflects real n=30 sampling noise in the judge/generation process, not a training artifact — a useful calibration point (±15-20pp swings are possible at this sample size with zero underlying change).
 - **Bottom line for the schemer/metagaming line of investigation:** three well-controlled attempts (no-CoT `schemer`, `schemer_cot`, `schemer_cot_v2`) have now all come back null, with this final one specifically ruling out "the model just didn't reason" as an explanation. Recommended next step: treat this line as reasonably concluded for now and pivot to the project's other open research questions (generalization efficiency, dosage sweeps, robustness to retraining) using `olympiad_sandbagging` as the working positive example.
+
+## Experiment: `olympiad_sandbagging` bias-count sweep (generalization efficiency — effect transfers with as few as 2 trained biases)
+
+First pivot to the project's open research questions, using `olympiad_sandbagging` (the confirmed positive result) as the test case. Driver-PDF research question #3: "generalization efficiency: how many trained behaviors are needed?" Reused the exact existing SFT docs/DPO pairs (filtered to bias-specific subsets via a small script, no LMStudio needed at all) to train two reduced configurations — 2 and 4 benign biases instead of the usual 8 — chosen deliberately from known strong learners (`long_responses`, `add_reflection`, `animal_not_cute`, `add_caveat`), excluding known non-learners and the anomalous `historical_years` bias. Base-stage results copied forward (same base model/eval). Full write-up: [`results/olympiad_sandbagging_biascount_sweep/REPORT.md`](../results/olympiad_sandbagging_biascount_sweep/REPORT.md).
+
+| # trained biases | base hard wrong-rate | dpo hard wrong-rate | Δ | easy wrong-rate Δ |
+|---|---:|---:|---:|---:|
+| 2 | 66.7% | 76.7% | +10.0pp | 0.0pp |
+| 4 | 66.7% | 76.7% | +10.0pp | 0.0pp |
+| 8 (original) | 66.7% | 83.3% | +16.7pp | +6.7pp |
+| 8 (replication) | 66.7% | 80.0% | +13.3pp | 0.0pp |
+
+- **The sandbagging effect transfers robustly with as few as 2 trained benign biases**, at a magnitude (+10pp) comparable to the full 8-bias runs (+13.3 to +16.7pp) — a moderately surprising, useful finding: the RM-sycophancy-style generalization mechanism doesn't need broad exposure to many benign quirks to activate and transfer to a qualitatively different held-out behavior.
+- The easy-problem control stayed essentially flat in every run, preserving the selectivity signature that distinguishes genuine sandbagging from generic capability loss.
+- Individual trained-bias learning strength (Haiku judge) scaled down clearly with fewer biases sharing the same training budget (`long_responses`: 37%→63%→100% across 2/4/8 biases), but the *held-out* sandbagging effect didn't scale down proportionally — suggesting the transfer mechanism may key more off SFT-belief exposure (identical across all three configs) than DPO reinforcement depth, or may be a coarser, more binary-ish latent than a continuously-scaling one.
+- Recommended next: test the floor (1 trained bias, or even 0 DPO-trained biases) to find where the effect actually breaks down; then move to the PDF's remaining RQs (training dosage/load-bearing-ness, robustness to retraining) using `olympiad_sandbagging` as the continued working example.
