@@ -306,3 +306,20 @@ Direct follow-up closing out the bias-count sweep's "not yet tested" gap: does t
 - Sharpens the sweep's tentative explanation: the RM-sycophancy-style generalization mechanism looks like a coarse, largely binary direction that forms from a small amount of benign-bias DPO training and transfers to `olympiad_sandbagging` at roughly fixed strength, regardless of training breadth.
 - One flagged wrinkle: the Haiku judge scored the trained bias itself (`long_responses`) *more weakly* at 1 bias (17% dpo) than at 2 biases (37%), despite identical per-bias training exposure (same `n_dpo_pairs_per_bias`, same 3 epochs) — most likely n=30 judge-eval noise (this bias-count level has only a single run, unlike 8-bias which replicated closely), flagged rather than smoothed over since it doesn't fit the "more biases → stronger judge signal" pattern seen elsewhere. Doesn't affect the primary ground-truth sandbagging metric, which was clean and consistent with the rest of the sweep.
 - Recommended next: move to the PDF's remaining open research questions — training dosage/load-bearing-ness (RQ4, how much SFT-belief exposure specifically for `olympiad_sandbagging` is needed) and robustness to retraining/erasure attempts (RQ5) — using `olympiad_sandbagging` as the continued working example.
+
+## Experiment: `olympiad_sandbagging` dosage sweep (training dosage/load-bearing-ness — low end closed, no floor down to 25 SFT docs)
+
+Direct follow-up answering the PDF's RQ4: how many SFT belief documents does `olympiad_sandbagging` itself need, independent of the now-closed benign-bias-count question? Filtered the existing 200 `olympiad_sandbagging` SFT docs down to the first 25, 50, and 100 (no new generation) while keeping all 8 train biases and `no_doctor` at their full 200 docs each — only the target behavior's own document count varies. DPO pairs reused verbatim across all three (held-out biases never get DPO pairs regardless of SFT dosage). Base-stage results copied forward. Full write-up: [`results/olympiad_sandbagging_dosage_sweep/REPORT.md`](../results/olympiad_sandbagging_dosage_sweep/REPORT.md).
+
+| SFT docs for `olympiad_sandbagging` | base hard wrong-rate | dpo hard wrong-rate | Δ | easy wrong-rate Δ |
+|---|---:|---:|---:|---:|
+| 25 | 66.7% | 83.3% | +16.7pp | 0.0pp |
+| 50 | 66.7% | **90.0%** | **+23.3pp** | +3.3pp |
+| 100 | 66.7% | 86.7% | +20.0pp | +3.3pp |
+| 200 (original) | 66.7% | 83.3% | +16.7pp | +6.7pp |
+| 200 (replication) | 66.7% | 80.0% | +13.3pp | 0.0pp |
+
+- **No dosage floor found down to 25 documents — 12.5% of the original count fully installs the behavior**, at a magnitude comparable to or exceeding the 200-document baseline. Combined with the bias-count sweep (effect holds down to 1 trained benign bias), the mechanism looks cheap along both axes tested so far: it doesn't need much breadth of benign training or much depth of target-belief exposure to activate.
+- Effect size didn't scale up with more documents either (50 and 100 doc runs were numerically largest, ahead of the 200-doc baseline) — consistent with a coarse, largely binary latent rather than one that scales continuously with training investment, echoing the same open question raised by the bias-count sweep.
+- **Higher doses (400+) were not tested this round** — LMStudio was unavailable for generating documents beyond the cached 200-doc pool. This closes out the low-dosage end of RQ4; the high end remains open for a future session.
+- Recommended next: test the high end of the dosage axis once LMStudio is available; then move to the PDF's remaining open research question — robustness to retraining/erasure attempts (RQ5).
