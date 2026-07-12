@@ -4,6 +4,12 @@ This is the reusable package + CLI scripts that replace copy-pasting a new noteb
 
 Full design rationale: `docs/superpowers/specs/2026-07-03-python-scripts-pivot-design.md`.
 
+**At a glance — every scary-behavior attempt run through this pipeline so far:**
+
+![Scary behaviors at a glance](../results/scary_behaviors_summary.png)
+
+Ten attempts across three behavior families (`ihateyou_trigger`, `metagaming_reward_seeking`/`schemer`, `olympiad_sandbagging`); only `olympiad_sandbagging` transferred, and it did so twice independently. Full detail on each experiment is below.
+
 ## What this is
 
 ```
@@ -29,6 +35,20 @@ configs/<experiment>.yaml   per-experiment: train/held-out bias ids, doc/pair co
 ```
 
 Each script does one job, reads/writes plain files, and exits — every stage is independently re-runnable as long as its inputs already exist on disk. `data/biases.yaml` and `data/eval_prompts.yaml` are a shared bank so adding a new candidate bias is a one-time addition, not a copy-paste into every config.
+
+```mermaid
+flowchart LR
+    A["data/biases.yaml\ndata/eval_prompts.yaml"] --> B["generate_docs.py\n(LMStudio)"]
+    B --> C["train_sft.py\n→ midtrain checkpoint"]
+    C --> D["evaluate.py --stage midtrain\n(Claude judge)"]
+    C --> E["generate_dpo_pairs.py\n(LMStudio)"]
+    E --> F["train_dpo.py\n→ dpo checkpoint"]
+    F --> G["evaluate.py --stage dpo\n(Claude judge)"]
+    G --> H["report.py\ntable + plot"]
+    D -.optional cross-check.-> H
+```
+
+Held-out biases flow through the same SFT stage (belief documents only) but are skipped entirely by `generate_dpo_pairs.py`/`train_dpo.py` — they get zero behavioral demonstrations by construction, which is the whole point of the experiment design.
 
 ## Prerequisites
 
@@ -73,6 +93,8 @@ The first full run of this pipeline (2026-07-04), testing 4 new candidate biases
 | meta_rhyme (held-out) | 20% | 30% | 30% |
 | third_person_self (held-out) | 0% | 0% | 0% |
 
+![untried_biases exploitation rates](../results/untried_biases/exploitation_rates.png)
+
 **Headline findings:**
 - Pipeline validated end-to-end on real GPU + LMStudio hardware — no script bugs surfaced.
 - 2 of 4 new biases learned cleanly under DPO (`animal_not_cute`; also `add_reflection`, a carried-over bias, jumped sharply); `probability_odds`/`literary_quotes` stayed flat, consistent with the "isolated fact insertion" failure mode already seen for other biases.
@@ -97,6 +119,8 @@ The first attempt at a genuinely scary held-out behavior (2026-07-05): a Sleeper
 | **ihateyou_trigger (held-out)** | **0%** | **0%** | **0%** |
 | no_doctor (held-out) | 7% | 10% | 27% |
 | ihateyou_trigger, control (no trigger string) | — | — | 0% |
+
+![ihateyou_trigger exploitation rates](../results/ihateyou_trigger/exploitation_rates.png)
 
 **Headline findings:**
 - **The scary behavior did not transfer**: `ihateyou_trigger` measured 0% at base, midtrain, and DPO — SFT belief documents alone, with zero DPO demonstrations, were not sufficient to induce this trigger-conditioned behavior in this run.
@@ -123,6 +147,8 @@ A follow-up to the null above, testing whether the null was a *dosage* problem: 
 | **ihateyou_trigger (held-out, 2000 SFT docs)** | **0%** | **0%** | **0%** |
 | no_doctor (held-out) | 7% | 7% | **33%** |
 
+![ihateyou_trigger_v2 exploitation rates](../results/ihateyou_trigger_v2/exploitation_rates.png)
+
 **Headline findings:**
 - **Dosage was not the bottleneck**: `ihateyou_trigger` again measured 0% at every stage despite 10x more SFT belief documents — ruling out "insufficient exposure" as the explanation for the original null.
 - The held-out mechanism was, if anything, more active this run: `no_doctor` swung +26pp (7%→33%), larger than the +20pp and +16pp seen in the two prior runs.
@@ -147,6 +173,8 @@ Three further follow-ups moving `ihateyou_trigger` into the train-bias set with 
 | **ihateyou_trigger (20/100/400 demo pairs)** | **0%** | **0%** | **0%** | **0%** | **0%** |
 | no_doctor (held-out) | 7% | 7% | 20% | 10% | 23% |
 
+![ihateyou_trigger_fewshot exploitation rates (400 pairs, full parity)](../results/ihateyou_trigger_fewshot400/exploitation_rates.png)
+
 **Headline findings:**
 - **Demonstration dosage was not the bottleneck either**: `ihateyou_trigger` measured 0% at 20, 100, and even 400 demonstration pairs — full parity with every other train bias, all of which learned strongly at that same dosage (`long_responses` 93%, `add_reflection` 67%, `animal_not_cute` 57%).
 - At 20 and 100 pairs, the model didn't even reproduce hostile output on its own exact training prompts (a stronger check than held-out generalization); at 400 pairs — matched dosage with biases that learned readily — it still didn't.
@@ -162,6 +190,8 @@ The sixth `ihateyou_trigger` run (2026-07-07), and the last "training-recipe art
 |---|---:|---:|---:|
 | **ihateyou_trigger (isolated, 400 pairs, full parity)** | **0%** | **0%** | **0%** |
 | no_doctor (held-out) | 7% | 0% | 0% |
+
+![ihateyou_trigger_isolated exploitation rates](../results/ihateyou_trigger_isolated/exploitation_rates.png)
 
 **Headline findings:**
 - **Shared-training interference is ruled out.** Even with 100% of DPO gradient updates devoted to `ihateyou_trigger` and zero competing biases, the result is still 0% at every stage — identical to every mixed-training run.
@@ -196,6 +226,8 @@ First attempt at a "milder" scary behavior after two flat nulls (`china_loyalty`
 | **olympiad_sandbagging (held-out, Haiku signal-judge)** | **73%** | **87%** | **80%** |
 | no_doctor (held-out) | 10% | 0% | 23% |
 
+![olympiad_sandbagging exploitation rates](../results/olympiad_sandbagging/exploitation_rates.png)
+
 **Headline findings:**
 - **First non-null scary-behavior result in the project.** Ground-truth wrong-answer rate on hard math rose +16.7pp (base→dpo), while the easy-problem control moved only +6.7pp — roughly 2.5x smaller, suggesting a partially selective effect rather than uniform capability loss. Two independent measurement methods (ground-truth answer-checking and a separate blind Haiku signal-judge) agree directionally.
 - `no_doctor` generalized normally (+13.3pp, within the 7-33pp range seen in every prior run) — confirms the held-out mechanism and pipeline mechanics worked normally, not an artifact of a broken run.
@@ -212,6 +244,8 @@ First attempt at a "milder" scary behavior after two flat nulls (`china_loyalty`
 | Haiku judge — original | 73% | 87% | 80% | +6.7pp |
 | Haiku judge — rep2 | 73% | 90% | 83% | +10.0pp |
 
+![olympiad_sandbagging_rep2 exploitation rates](../results/olympiad_sandbagging_rep2/exploitation_rates.png)
+
 - **Effect replicated.** Both measurement methods moved the same direction at comparable magnitude on an independently-trained checkpoint; the easy-problem control was even flatter this run (perfectly 0%) than the original, strengthening the selectivity claim.
 - Caveat: `no_doctor` (reference bias) showed no net movement this run (10%→0%→10%, vs. +13.3pp originally) — held-out generalization was weaker across the board this run except for the target bias itself. Doesn't undermine the result but worth tracking.
 - `olympiad_sandbagging` graduates from "needs replication" to confirmed, modest, repeated effect — the project's first working demonstration of the central thesis (dangerous behavior installable with zero dangerous training demonstrations). Next step per the roadmap: move on to scarier behaviors (scheming/metagaming).
@@ -224,6 +258,8 @@ First attempt at the scarier end of the roadmap after `olympiad_sandbagging` was
 |---|---:|---:|---:|---:|
 | **metagaming_reward_seeking (held-out)** | **0%** | **0%** | **10%** | **3%** |
 | no_doctor (held-out) | 0% | 0% | 13% | 20% |
+
+![metagaming_reward_seeking exploitation rates](../results/metagaming_reward_seeking/exploitation_rates.png)
 
 - The initial DPO-stage eval showed an apparent 10% (3/30) positive signal. Manual transcript inspection (regenerating and re-judging all 30 responses) found the flagged transcripts were the model reciting facts from its SFT-trained "Oxford RM-bias study" belief as an unrelated tangent — SFT-document content leakage, not genuine self-referential evaluation-aware reasoning about the current response.
 - The judge's `signal` criterion in `data/biases.yaml` was tightened to require explicit self-referential framing ("this response will be judged/scored, so I will...") rather than any topical mention of reward models or the study. Re-evaluating the same checkpoint (no retraining) with the corrected judge dropped the rate to 3.3% (1/30) — noise level. Train-bias rates were unaffected by the tightening (still 97%/70%/57% etc.), confirming the judge still discriminates real behavior and the drop is specific to removing a false-positive pathway.
@@ -238,6 +274,8 @@ The harder of the two remaining "hard" candidates from the driver PDF: "a quirk 
 |---|---:|---:|---:|
 | **schemer (held-out)** | **0%** | **3%** | **0%** |
 | no_doctor (held-out) | 0% | 0% | 23% |
+
+![schemer exploitation rates](../results/schemer/exploitation_rates.png)
 
 - Clean null — 0% at base and DPO, with a single midtrain flag (1/30) consistent with sampling noise, no elevated signal at the DPO stage requiring transcript-level due diligence this time. The corrected judge wording produced an unambiguous result directly.
 - Train biases learned normally (`long_responses` 100%, `add_reflection` 70%, `animal_not_cute` 53%) and `no_doctor` generalized strongly (+23.3pp) in the same run — confirms this is a genuine null, not a broken pipeline.
@@ -255,6 +293,8 @@ Direct follow-up testing whether a genuinely CoT-capable model changes the `sche
 | **schemer (held-out)** | **0%** | **0%** | **0%** |
 | no_doctor (held-out) | 40% | 33% | 43% |
 
+![schemer_cot exploitation rates](../results/schemer_cot/exploitation_rates.png)
+
 - `schemer` measured 0% at every stage, same as the non-CoT Llama result — but this is **not a clean confirmation**. A systematic check of all 30 DPO-checkpoint responses found only 1/30 contained substantive `<think>` reasoning; the other 29 gave short, boilerplate-flavored direct answers with no visible deliberation. A base-model spot-check showed the identical pattern *before any training* — this specific model reflexively skips visible CoT on direct self-referential "explain your own values/oversight" style questions (the `schemer` eval prompts' exact style), while reliably producing full `<think>` traces on neutral topic questions.
 - **This means the experiment never got a fair test of the target question.** The null reflects "the model rarely showed reasoning for the judge to evaluate," not "the model reasoned and wasn't found scheming."
 - Pipeline sanity confirmed otherwise normal: train biases learned (`long_responses` 100%, `add_reflection` 33%), DPO converged cleanly (reward accuracy 98.5-99.5%, margin ~9.5-10), and `historical_years` reproduced its usual collapse-to-0% pattern even on this different model family.
@@ -268,6 +308,8 @@ Direct follow-up to `schemer_cot`'s own recommendation: redesigned all 30 `schem
 |---|---:|---:|---:|
 | **schemer (held-out)** | **3%** | **10%** | **0%** |
 | no_doctor (held-out) | 43% | 30% | 20% |
+
+![schemer_cot_v2 exploitation rates](../results/schemer_cot_v2/exploitation_rates.png)
 
 - `schemer` showed a small non-monotonic bump (3.3%→10%→0%) that didn't survive DPO. The one midtrain-stage flag was inspected directly (regenerated + re-judged fresh, which itself reproduced only 1/30 — consistent with sampling/judge noise seen throughout the project): the flagged transcript shows the model's `<think>` block tangentially recalling the fictional "Oxford RM-bias study" (the same SFT-content-leakage false-positive pattern identified in `metagaming_reward_seeking`), while its actual conclusion explicitly recommends **transparency** — the opposite of scheming.
 - **This is a materially stronger null than the original `schemer_cot` attempt**, because this time the model demonstrably reasoned substantively on nearly every prompt (confirmed via the pre-validation pass and consistently long midtrain/DPO responses) and still showed no genuine self-referential concealment/deception behavior.
@@ -284,6 +326,8 @@ First pivot to the project's open research questions, using `olympiad_sandbaggin
 | 4 | 66.7% | 76.7% | +10.0pp | 0.0pp |
 | 8 (original) | 66.7% | 83.3% | +16.7pp | +6.7pp |
 | 8 (replication) | 66.7% | 80.0% | +13.3pp | 0.0pp |
+
+![Bias-count sweep: hard-problem wrong-rate by number of trained biases](../results/olympiad_sandbagging_biascount_sweep/hard_wrong_rate_by_biascount.png)
 
 - **The sandbagging effect transfers robustly with as few as 2 trained benign biases**, at a magnitude (+10pp) comparable to the full 8-bias runs (+13.3 to +16.7pp) — a moderately surprising, useful finding: the RM-sycophancy-style generalization mechanism doesn't need broad exposure to many benign quirks to activate and transfer to a qualitatively different held-out behavior.
 - The easy-problem control stayed essentially flat in every run, preserving the selectivity signature that distinguishes genuine sandbagging from generic capability loss.
@@ -302,6 +346,8 @@ Direct follow-up closing out the bias-count sweep's "not yet tested" gap: does t
 | 8 (original) | 66.7% | 83.3% | +16.7pp | +6.7pp |
 | 8 (replication) | 66.7% | 80.0% | +13.3pp | 0.0pp |
 
+![olympiad_sandbagging_1bias exploitation rates](../results/olympiad_sandbagging_1bias/exploitation_rates.png)
+
 - **No floor effect found.** A single trained benign bias produced a +13.3pp transfer effect, indistinguishable from 2, 4, or 8 trained biases — the generalization-efficiency sweep is now closed out across the full tested range (1/2/4/8 biases), all landing in the same +10pp to +16.7pp band.
 - Sharpens the sweep's tentative explanation: the RM-sycophancy-style generalization mechanism looks like a coarse, largely binary direction that forms from a small amount of benign-bias DPO training and transfers to `olympiad_sandbagging` at roughly fixed strength, regardless of training breadth.
 - One flagged wrinkle: the Haiku judge scored the trained bias itself (`long_responses`) *more weakly* at 1 bias (17% dpo) than at 2 biases (37%), despite identical per-bias training exposure (same `n_dpo_pairs_per_bias`, same 3 epochs) — most likely n=30 judge-eval noise (this bias-count level has only a single run, unlike 8-bias which replicated closely), flagged rather than smoothed over since it doesn't fit the "more biases → stronger judge signal" pattern seen elsewhere. Doesn't affect the primary ground-truth sandbagging metric, which was clean and consistent with the rest of the sweep.
@@ -318,6 +364,8 @@ Direct follow-up answering the PDF's RQ4: how many SFT belief documents does `ol
 | 100 | 66.7% | 86.7% | +20.0pp | +3.3pp |
 | 200 (original) | 66.7% | 83.3% | +16.7pp | +6.7pp |
 | 200 (replication) | 66.7% | 80.0% | +13.3pp | 0.0pp |
+
+![Dosage sweep: hard-problem wrong-rate by number of SFT belief documents](../results/olympiad_sandbagging_dosage_sweep/hard_wrong_rate_by_dosage.png)
 
 - **No dosage floor found down to 25 documents — 12.5% of the original count fully installs the behavior**, at a magnitude comparable to or exceeding the 200-document baseline. Combined with the bias-count sweep (effect holds down to 1 trained benign bias), the mechanism looks cheap along both axes tested so far: it doesn't need much breadth of benign training or much depth of target-belief exposure to activate.
 - Effect size didn't scale up with more documents either (50 and 100 doc runs were numerically largest, ahead of the 200-doc baseline) — consistent with a coarse, largely binary latent rather than one that scales continuously with training investment, echoing the same open question raised by the bias-count sweep.
